@@ -7,7 +7,8 @@ int main()
 	VkApplicationInfo appInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-		.pApplicationName = "Triangle Vulkan App"
+		.pApplicationName = "Triangle Vulkan App",
+		.apiVersion = VK_MAKE_API_VERSION(0, 1, 3, 290)
 	};
 
 	VkInstanceCreateInfo instanceCreateInfo =
