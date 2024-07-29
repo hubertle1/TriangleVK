@@ -21,8 +21,7 @@ Window::Window( const std::string& windowName )
 	}
 
 	this->window = CreateWindowExA( WS_EX_APPWINDOW, this->className, windowName.c_str(),
-		WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_TILED,
-		100, 100, 720, 480, 0, 0, instanceHandle, 0 );
+		WS_TILEDWINDOW, 100, 100, 720, 480, 0, 0, instanceHandle, 0 );
 
 	if( this->window == NULL )
 	{
