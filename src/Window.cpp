@@ -4,7 +4,7 @@
 
 bool Window::isRunning = false;
 
-Window::Window( const std::string& windowName )
+Window::Window( const std::string& windowName, int width, int height )
 {
 	this->isRunning = true;
 	HINSTANCE instanceHandle = GetModuleHandleA( 0 );
@@ -17,15 +17,19 @@ Window::Window( const std::string& windowName )
 
 	if( !RegisterClassA( &windowClass ) )
 	{
-		this->raportError( "Failed to register window class" );
+		this->RaportError( "Failed to register window class" );
 	}
 
+	auto resolution = this->GetScreenResolution();
+	const auto& vStartingPosition = (resolution.first - width) / 2;
+	const auto& hStartingPosition = (resolution.second - height) / 2;
+
 	this->window = CreateWindowExA( WS_EX_APPWINDOW, this->className, windowName.c_str(),
-		WS_TILEDWINDOW, 100, 100, 720, 480, 0, 0, instanceHandle, 0 );
+		WS_TILEDWINDOW, vStartingPosition, hStartingPosition, width, height, 0, 0, instanceHandle, 0 );
 
 	if( this->window == NULL )
 	{
-		this->raportError( "Failed to create window" );
+		this->RaportError( "Failed to create window" );
 	}
 	else
 	{
@@ -62,7 +66,19 @@ LRESULT Window::WindowCallbacks( HWND window, UINT msg, WPARAM wParam, LPARAM lP
 	return DefWindowProcA(window, msg, wParam, lParam);
 }
 
-void Window::raportError( const std::string& message ) const
+std::pair<long, long> Window::GetScreenResolution()
+{
+	RECT desktop;
+	const HWND hDesktop = GetDesktopWindow();
+	if( GetWindowRect( hDesktop, &desktop ) == NULL )
+	{
+		this->RaportError( "Failed to obtain screen resolution!" );
+	}
+
+	return { desktop.right, desktop.bottom };
+}
+
+void Window::RaportError( const std::string& message ) const
 {
 	MessageBoxA( window, message.c_str(), "Error", MB_ICONEXCLAMATION | MB_OK);
 	throw std::runtime_error( message );

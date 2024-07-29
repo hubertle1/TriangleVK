@@ -5,7 +5,7 @@
 class Window
 {
 public:
-	Window(const std::string& windowName);
+	Window(const std::string& windowName, int width = 640, int height = 480);
 	void OnUpdate() const;
 	bool isOpen() const;
 
@@ -15,5 +15,6 @@ private:
 	const char* className = "vulkan_triangle";
 
 	static LRESULT CALLBACK WindowCallbacks( HWND window, UINT msg, WPARAM wParam, LPARAM lParam );
-	void raportError( const std::string& message ) const;
+	std::pair<long, long> GetScreenResolution();
+	void RaportError( const std::string& message ) const;
 };
