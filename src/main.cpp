@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <iostream>
 #include <vulkan/vulkan.h>
+#include "Window.h"
 
 int main()
 {
@@ -20,9 +21,17 @@ int main()
 	VkInstance instance;
 
 	auto result = vkCreateInstance( &instanceCreateInfo, nullptr, &instance );
-	if( result == VK_SUCCESS )
+	if( result != VK_SUCCESS )
 	{
-		std::cout << "Vulkan instance initialized successfully!" << std::endl;
+		std::cerr << "Failed to initialize Vulkan instance!" << std::endl;
+		return result;
+	}
+	std::cout << "Vulkan instance initialized successfully!" << std::endl;
+
+	auto window = Window("Vulkan Triangle application");
+	while( window.isOpen() )
+	{
+		window.OnUpdate();
 	}
 
 	return 0;
