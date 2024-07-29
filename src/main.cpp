@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <iostream>
 #include <vulkan/vulkan.h>
-#include "Window.h"
+#include "window.h"
 
 int main()
 {

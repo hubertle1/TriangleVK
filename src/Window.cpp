@@ -1,4 +1,4 @@
-#include "Window.h"
+#include "window.h"
 
 #include <stdexcept>
 
@@ -30,12 +30,10 @@ Window::Window( const std::string& windowName, int width, int height )
 	if( this->window == NULL )
 	{
 		this->RaportError( "Failed to create window" );
+		return;	// This return suppresses Intellisense C6387 warning
 	}
-	else
-	{
-		// Else block required for Intellisense warning supression
-		ShowWindow( this->window, SW_SHOW );
-	}
+	
+	ShowWindow( this->window, SW_SHOW );
 }
 
 void Window::OnUpdate() const
