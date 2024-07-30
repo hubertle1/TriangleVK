@@ -7,7 +7,7 @@ bool Window::isRunning = false;
 Window::Window( const std::string& windowName, int width, int height )
 {
 	this->isRunning = true;
-	HINSTANCE instanceHandle = GetModuleHandleA( 0 );
+	HINSTANCE instanceHandle = this->GetModule();
 	WNDCLASS windowClass =
 	{
 		.lpfnWndProc = this->WindowCallbacks,
@@ -36,6 +36,21 @@ Window::Window( const std::string& windowName, int width, int height )
 	ShowWindow( this->window, SW_SHOW );
 }
 
+HINSTANCE Window::GetModule() const
+{
+	return GetModuleHandleA( 0 );
+}
+
+HWND Window::GetWindow() const
+{
+	return this->window;
+}
+
+bool Window::IsOpen() const
+{
+	return this->isRunning;
+}
+
 void Window::OnUpdate() const
 {
 	MSG message;
@@ -45,23 +60,6 @@ void Window::OnUpdate() const
 		TranslateMessage( &message );
 		DispatchMessageA( &message );
 	}
-}
-
-bool Window::isOpen() const
-{
-	return this->isRunning;
-}
-
-LRESULT Window::WindowCallbacks( HWND window, UINT msg, WPARAM wParam, LPARAM lParam )
-{
-	switch( msg )
-	{
-	case WM_CLOSE:
-		isRunning = false;
-		break;
-	}
-
-	return DefWindowProcA(window, msg, wParam, lParam);
 }
 
 std::pair<long, long> Window::GetScreenResolution()
@@ -74,6 +72,18 @@ std::pair<long, long> Window::GetScreenResolution()
 	}
 
 	return { desktop.right, desktop.bottom };
+}
+
+LRESULT Window::WindowCallbacks( HWND window, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch( msg )
+	{
+	case WM_CLOSE:
+		isRunning = false;
+		break;
+	}
+
+	return DefWindowProcA(window, msg, wParam, lParam);
 }
 
 void Window::RaportError( const std::string& message ) const
