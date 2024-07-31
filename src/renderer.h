@@ -12,6 +12,7 @@ private:
 	{
 		VkInstance instance;
 		VkSurfaceKHR surface;
+		VkSwapchainKHR swapchain;
 
 		struct GPU
 		{
@@ -25,6 +26,8 @@ private:
 	void SetupSurface( const Window& window );
 	void SetupGPU();
 	uint32_t GetGPUIndex( const VkPhysicalDevice& gpu ) const;
+
+	void SetupSwapchain();
 
 	void Validate( VkResult result, const std::string& whatWasValidatedMessage ) const;
 };

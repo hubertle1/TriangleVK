@@ -11,6 +11,7 @@ Renderer::Renderer( const Window& window )
 	this->SetupInstance();
 	this->SetupSurface( window );
 	this->SetupGPU();
+	this->SetupSwapchain();
 }
 
 void Renderer::SetupInstance()
@@ -79,9 +80,28 @@ void Renderer::SetupGPU()
 		this->context.gpu.index = index;
 	}
 
+	float queuePriority = 1.0f;
+
+	VkDeviceQueueCreateInfo queueInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+		.queueFamilyIndex = this->context.gpu.index,
+		.queueCount = 1,
+		.pQueuePriorities = &queuePriority,
+	};
+
+	std::array<const char*, 1> extensions =
+	{
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	};
+
 	VkDeviceCreateInfo deviceInfo =
 	{
-		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.queueCreateInfoCount = 1,
+		.pQueueCreateInfos = &queueInfo,
+		.enabledExtensionCount = extensions.size(),
+		.ppEnabledExtensionNames = extensions.data(),
 	};
 
 	this->Validate( 
@@ -113,6 +133,21 @@ uint32_t Renderer::GetGPUIndex( const VkPhysicalDevice& gpu ) const
 	}
 
 	throw std::runtime_error( "GPU was not detected!" );
+}
+
+void Renderer::SetupSwapchain()
+{
+	VkSwapchainCreateInfoKHR swapchainInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = this->context.surface,
+		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+	};
+
+	this->Validate(
+		vkCreateSwapchainKHR( this->context.gpu.logicalDevice, &swapchainInfo, 0, &this->context.swapchain ) ,
+		"Create swapchain"
+	);
 }
 
 void Renderer::Validate( VkResult result, const std::string& whatWasValidatedMessage ) const
