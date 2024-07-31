@@ -12,7 +12,8 @@ endif()
 project ("TriangleVK")
 
 # Add source to this project's executable.
-add_executable (TriangleVK "src/main.cpp"  "src/Window.h" "src/Window.cpp")
+FILE(GLOB_RECURSE codeFiles "src/*")
+add_executable (TriangleVK ${codeFiles})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TriangleVK PROPERTY CXX_STANDARD 20)

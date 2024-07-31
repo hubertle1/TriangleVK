@@ -1,4 +1,4 @@
-#include "Window.h"
+#include "window.h"
 
 #include <stdexcept>
 
@@ -7,7 +7,7 @@ bool Window::isRunning = false;
 Window::Window( const std::string& windowName, int width, int height )
 {
 	this->isRunning = true;
-	HINSTANCE instanceHandle = GetModuleHandleA( 0 );
+	HINSTANCE instanceHandle = this->GetModule();
 	WNDCLASS windowClass =
 	{
 		.lpfnWndProc = this->WindowCallbacks,
@@ -30,12 +30,25 @@ Window::Window( const std::string& windowName, int width, int height )
 	if( this->window == NULL )
 	{
 		this->RaportError( "Failed to create window" );
+		return;	// This return suppresses Intellisense C6387 warning
 	}
-	else
-	{
-		// Else block required for Intellisense warning supression
-		ShowWindow( this->window, SW_SHOW );
-	}
+	
+	ShowWindow( this->window, SW_SHOW );
+}
+
+HINSTANCE Window::GetModule() const
+{
+	return GetModuleHandleA( 0 );
+}
+
+HWND Window::GetWindow() const
+{
+	return this->window;
+}
+
+bool Window::IsOpen() const
+{
+	return this->isRunning;
 }
 
 void Window::OnUpdate() const
@@ -49,9 +62,16 @@ void Window::OnUpdate() const
 	}
 }
 
-bool Window::isOpen() const
+std::pair<long, long> Window::GetScreenResolution()
 {
-	return this->isRunning;
+	RECT desktop;
+	const HWND hDesktop = GetDesktopWindow();
+	if( GetWindowRect( hDesktop, &desktop ) == NULL )
+	{
+		this->RaportError( "Failed to obtain screen resolution!" );
+	}
+
+	return { desktop.right, desktop.bottom };
 }
 
 LRESULT Window::WindowCallbacks( HWND window, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -64,18 +84,6 @@ LRESULT Window::WindowCallbacks( HWND window, UINT msg, WPARAM wParam, LPARAM lP
 	}
 
 	return DefWindowProcA(window, msg, wParam, lParam);
-}
-
-std::pair<long, long> Window::GetScreenResolution()
-{
-	RECT desktop;
-	const HWND hDesktop = GetDesktopWindow();
-	if( GetWindowRect( hDesktop, &desktop ) == NULL )
-	{
-		this->RaportError( "Failed to obtain screen resolution!" );
-	}
-
-	return { desktop.right, desktop.bottom };
 }
 
 void Window::RaportError( const std::string& message ) const
