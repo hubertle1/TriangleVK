@@ -23,16 +23,25 @@ void Renderer::SetupInstance()
 		.apiVersion = VK_MAKE_API_VERSION( 0, 1, 3, 290 )
 	};
 
-	std::array<const char*, 2> extensions =
+	std::array<const char*, 3> extensions =
 	{
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-		VK_KHR_SURFACE_EXTENSION_NAME
+		VK_KHR_SURFACE_EXTENSION_NAME,
+
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+	};
+
+	std::array<const char*, 1> layers =
+	{
+		"VK_LAYER_KHRONOS_validation"
 	};
 
 	VkInstanceCreateInfo instanceCreateInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 		.pApplicationInfo = &appInfo,
+		.enabledLayerCount = static_cast<uint32_t>( layers.size()),
+		.ppEnabledLayerNames = layers.data(),
 		.enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
 		.ppEnabledExtensionNames = extensions.data(),
 	};
@@ -41,6 +50,30 @@ void Renderer::SetupInstance()
 		vkCreateInstance( &instanceCreateInfo, nullptr, &this->context.instance ), 
 		"Create instance"
 	);
+
+	auto DebugUtilsMessenger = ( PFN_vkCreateDebugUtilsMessengerEXT ) (
+		vkGetInstanceProcAddr( this->context.instance, "vkCreateDebugUtilsMessengerEXT" )
+	);
+
+	if( DebugUtilsMessenger != nullptr )
+	{
+		VkDebugUtilsMessengerCreateInfoEXT debugInfo =
+		{
+			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+			.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
+			.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT,
+			.pfnUserCallback = this->DebugCallback
+		};
+
+		DebugUtilsMessenger( this->context.instance, &debugInfo, 0, &this->context.debugMessenger );
+	}
+}
+
+VkBool32 VKAPI_PTR Renderer::DebugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData )
+{
+	std::cout << std::endl << pCallbackData->pMessage << std::endl;
+
+	return VK_SUCCESS;
 }
 
 void Renderer::SetupSurface( const Window& window )
@@ -100,7 +133,7 @@ void Renderer::SetupGPU()
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &queueInfo,
-		.enabledExtensionCount = extensions.size(),
+		.enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
 		.ppEnabledExtensionNames = extensions.data(),
 	};
 

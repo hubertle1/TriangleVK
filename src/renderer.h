@@ -11,6 +11,8 @@ private:
 	struct Context
 	{
 		VkInstance instance;
+		VkDebugUtilsMessengerEXT debugMessenger;
+
 		VkSurfaceKHR surface;
 		VkSwapchainKHR swapchain;
 
@@ -23,6 +25,13 @@ private:
 	} context;
 
 	void SetupInstance();
+	static VkBool32 VKAPI_PTR DebugCallback(
+		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+		VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+		void* pUserData
+	);
+	
 	void SetupSurface( const Window& window );
 	void SetupGPU();
 	uint32_t GetGPUIndex( const VkPhysicalDevice& gpu ) const;
