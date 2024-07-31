@@ -51,7 +51,7 @@ void Renderer::SetupInstance()
 		"Create instance"
 	);
 
-	auto DebugUtilsMessenger = ( PFN_vkCreateDebugUtilsMessengerEXT ) (
+	auto DebugUtilsMessenger = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
 		vkGetInstanceProcAddr( this->context.instance, "vkCreateDebugUtilsMessengerEXT" )
 	);
 
