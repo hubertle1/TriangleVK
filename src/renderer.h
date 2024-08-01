@@ -1,6 +1,7 @@
 #pragma once
 #include "win32/window.h"
 #include <vulkan/vulkan.h>
+#include <vector>
 
 class Renderer
 {
@@ -14,7 +15,14 @@ private:
 		VkDebugUtilsMessengerEXT debugMessenger;
 
 		VkSurfaceKHR surface;
-		VkSwapchainKHR swapchain;
+		VkSurfaceFormatKHR surfaceFormat;
+
+		struct Swapchain
+		{
+			VkSwapchainKHR chain;
+			uint32_t imageCount;
+			std::vector<VkImage> images;
+		} swapchain;
 
 		struct GPU
 		{

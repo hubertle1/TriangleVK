@@ -3,7 +3,6 @@
 #include <array>
 #include <iostream>
 #include <stdexcept>
-#include <vector>
 #include <vulkan/vulkan_win32.h>
 
 Renderer::Renderer( const Window& window )
@@ -102,7 +101,7 @@ void Renderer::SetupGPU()
 	std::vector<VkPhysicalDevice> gpus(gpusAvailable);
 	this->Validate(
 		vkEnumeratePhysicalDevices( this->context.instance, &gpusAvailable, gpus.data()),
-		"Get physical devices data"
+		"Get physical devices array"
 	);
 
 	for( const auto& gpu : gpus )
@@ -170,16 +169,65 @@ uint32_t Renderer::GetGPUIndex( const VkPhysicalDevice& gpu ) const
 
 void Renderer::SetupSwapchain()
 {
+	uint32_t formatCount;
+	this->Validate( vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, 0 ),
+		"Get GPU Surface Formats count"
+	);
+
+	std::vector<VkSurfaceFormatKHR> surfaceFormats( formatCount );
+	this->Validate(
+		vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, surfaceFormats.data()),
+		"Get GPU Surface Formats array"
+	);
+
+	for( auto& format : surfaceFormats )
+	{
+		if( format.format == VK_FORMAT_B8G8R8A8_SRGB )
+		{
+			this->context.surfaceFormat = format;
+			break;
+		}
+	}
+
+	VkSurfaceCapabilitiesKHR surfaceCapabilities;
+	this->Validate(
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR( this->context.gpu.physicalDevice, this->context.surface, &surfaceCapabilities ),
+		"Get GPU Surface Capabilities"
+	);
+
+	auto& sc = surfaceCapabilities;
+	uint32_t imageCount = sc.minImageCount + 1 > sc.maxImageCount ? sc.minImageCount : sc.minImageCount + 1;
+
 	VkSwapchainCreateInfoKHR swapchainInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.surface = this->context.surface,
+		.minImageCount = imageCount,
+		.imageFormat = this->context.surfaceFormat.format,
+		.imageExtent = surfaceCapabilities.currentExtent,
+		.imageArrayLayers = 1,
 		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.preTransform = surfaceCapabilities.currentTransform,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 	};
 
 	this->Validate(
-		vkCreateSwapchainKHR( this->context.gpu.logicalDevice, &swapchainInfo, 0, &this->context.swapchain ) ,
+		vkCreateSwapchainKHR( this->context.gpu.logicalDevice, &swapchainInfo, 0, &this->context.swapchain.chain ) ,
 		"Create swapchain"
+	);
+
+	this->Validate(
+		vkGetSwapchainImagesKHR( this->context.gpu.logicalDevice, this->context.swapchain.chain, &this->context.swapchain.imageCount, 0 ),
+		"Get Swapchain images count"
+	);
+
+	this->context.swapchain.images.reserve(this->context.swapchain.imageCount);
+	this->Validate(
+		vkGetSwapchainImagesKHR( 
+			this->context.gpu.logicalDevice, this->context.swapchain.chain,
+			&this->context.swapchain.imageCount, this->context.swapchain.images.data()
+		),
+		"Get Swapchain images array"
 	);
 }
 
