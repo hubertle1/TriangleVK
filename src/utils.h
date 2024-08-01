@@ -1,6 +1,8 @@
 #pragma once
-#include <vulkan/vulkan.h>
+#include <iostream>
 #include <string>
+#include <vulkan/vulkan.h>
+
 
 void Validate( VkResult result, const std::string& whatWasValidatedMessage )
 {

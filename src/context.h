@@ -50,9 +50,9 @@ private:
 	
 	void SetupSurface( const Window& window );
 	void SetupGPU();
-	std::pair<const VkPhysicalDevice&, const uint32_t&> DetectGPU();
+	std::pair<const VkPhysicalDevice&, const uint32_t&> DetectGPU() const;
 	uint32_t GetGPUIndex( const VkPhysicalDevice& gpu ) const;
 
 	void SetupSwapchain();
-	VkSurfaceFormatKHR GetSurfaceFormat();
+	VkSurfaceFormatKHR GetSurfaceFormat() const;
 };

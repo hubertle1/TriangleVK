@@ -137,7 +137,7 @@ void Context::SetupGPU()
 	);
 }
 
-std::pair<const VkPhysicalDevice&, const uint32_t&> Context::DetectGPU()
+std::pair<const VkPhysicalDevice&, const uint32_t&> Context::DetectGPU() const
 {
 	uint32_t gpusAvailable = 0;
 	Validate(
@@ -227,7 +227,7 @@ void Context::SetupSwapchain()
 	);
 }
 
-VkSurfaceFormatKHR Context::GetSurfaceFormat()
+VkSurfaceFormatKHR Context::GetSurfaceFormat() const
 {
 	uint32_t formatCount;
 	Validate( vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, 0 ),
