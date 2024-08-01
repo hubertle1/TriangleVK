@@ -50,9 +50,14 @@ void Renderer::SetupInstance()
 		"Create instance"
 	);
 
+	this->SetupLayerValidation();
+}
+
+void Renderer::SetupLayerValidation()
+{
 	auto DebugUtilsMessenger = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
 		vkGetInstanceProcAddr( this->context.instance, "vkCreateDebugUtilsMessengerEXT" )
-	);
+		);
 
 	if( DebugUtilsMessenger != nullptr )
 	{
@@ -92,25 +97,9 @@ void Renderer::SetupSurface( const Window& window )
 
 void Renderer::SetupGPU()
 {
-	uint32_t gpusAvailable = 0;
-	this->Validate(
-		vkEnumeratePhysicalDevices( this->context.instance, &gpusAvailable, 0 ),
-		"Get physical devices count"
-	);
-
-	std::vector<VkPhysicalDevice> gpus(gpusAvailable);
-	this->Validate(
-		vkEnumeratePhysicalDevices( this->context.instance, &gpusAvailable, gpus.data()),
-		"Get physical devices array"
-	);
-
-	for( const auto& gpu : gpus )
-	{
-		auto index = this->GetGPUIndex( gpu );
-
-		this->context.gpu.physicalDevice = gpu;
-		this->context.gpu.index = index;
-	}
+	auto detectedGPU = this->DetectGPU();
+	this->context.gpu.physicalDevice = detectedGPU.first;
+	this->context.gpu.index = detectedGPU.second;
 
 	float queuePriority = 1.0f;
 
@@ -142,6 +131,25 @@ void Renderer::SetupGPU()
 	);
 }
 
+std::pair<const VkPhysicalDevice&, const uint32_t&> Renderer::DetectGPU()
+{
+	uint32_t gpusAvailable = 0;
+	this->Validate(
+		vkEnumeratePhysicalDevices( this->context.instance, &gpusAvailable, 0 ),
+		"Get physical devices count"
+	);
+
+	std::vector<VkPhysicalDevice> gpus( gpusAvailable );
+	this->Validate(
+		vkEnumeratePhysicalDevices( this->context.instance, &gpusAvailable, gpus.data() ),
+		"Get physical devices array"
+	);
+
+	const auto gpu = gpus.at( 0 );
+
+	return { gpu, this->GetGPUIndex( gpu ) };	
+}
+
 uint32_t Renderer::GetGPUIndex( const VkPhysicalDevice& gpu ) const
 {
 	uint32_t queueFamilyCount = 0;
@@ -169,25 +177,7 @@ uint32_t Renderer::GetGPUIndex( const VkPhysicalDevice& gpu ) const
 
 void Renderer::SetupSwapchain()
 {
-	uint32_t formatCount;
-	this->Validate( vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, 0 ),
-		"Get GPU Surface Formats count"
-	);
-
-	std::vector<VkSurfaceFormatKHR> surfaceFormats( formatCount );
-	this->Validate(
-		vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, surfaceFormats.data()),
-		"Get GPU Surface Formats array"
-	);
-
-	for( auto& format : surfaceFormats )
-	{
-		if( format.format == VK_FORMAT_B8G8R8A8_SRGB )
-		{
-			this->context.surfaceFormat = format;
-			break;
-		}
-	}
+	this->context.surfaceFormat = this->GetSurfaceFormat();
 
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	this->Validate(
@@ -229,6 +219,28 @@ void Renderer::SetupSwapchain()
 		),
 		"Get Swapchain images array"
 	);
+}
+
+VkSurfaceFormatKHR Renderer::GetSurfaceFormat()
+{
+	uint32_t formatCount;
+	this->Validate( vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, 0 ),
+		"Get GPU Surface Formats count"
+	);
+
+	std::vector<VkSurfaceFormatKHR> surfaceFormats( formatCount );
+	this->Validate(
+		vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, surfaceFormats.data() ),
+		"Get GPU Surface Formats array"
+	);
+
+	for( auto& format : surfaceFormats )
+	{
+		if( format.format == VK_FORMAT_B8G8R8A8_SRGB )
+		{
+			return format;
+		}
+	}
 }
 
 void Renderer::Validate( VkResult result, const std::string& whatWasValidatedMessage ) const

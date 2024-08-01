@@ -47,9 +47,11 @@ private:
 	
 	void SetupSurface( const Window& window );
 	void SetupGPU();
+	std::pair<const VkPhysicalDevice&, const uint32_t&> DetectGPU();
 	uint32_t GetGPUIndex( const VkPhysicalDevice& gpu ) const;
 
 	void SetupSwapchain();
+	VkSurfaceFormatKHR GetSurfaceFormat();
 
 	void Validate( VkResult result, const std::string& whatWasValidatedMessage ) const;
 };
