@@ -3,7 +3,6 @@
 #include <array>
 #include <iostream>
 #include <stdexcept>
-#include <vector>
 #include <vulkan/vulkan_win32.h>
 
 Renderer::Renderer( const Window& window )
@@ -11,6 +10,7 @@ Renderer::Renderer( const Window& window )
 	this->SetupInstance();
 	this->SetupSurface( window );
 	this->SetupGPU();
+	this->SetupSwapchain();
 }
 
 void Renderer::SetupInstance()
@@ -22,16 +22,25 @@ void Renderer::SetupInstance()
 		.apiVersion = VK_MAKE_API_VERSION( 0, 1, 3, 290 )
 	};
 
-	std::array<const char*, 2> extensions =
+	std::array<const char*, 3> extensions =
 	{
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-		VK_KHR_SURFACE_EXTENSION_NAME
+		VK_KHR_SURFACE_EXTENSION_NAME,
+
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+	};
+
+	std::array<const char*, 1> layers =
+	{
+		"VK_LAYER_KHRONOS_validation"
 	};
 
 	VkInstanceCreateInfo instanceCreateInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 		.pApplicationInfo = &appInfo,
+		.enabledLayerCount = static_cast<uint32_t>( layers.size()),
+		.ppEnabledLayerNames = layers.data(),
 		.enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
 		.ppEnabledExtensionNames = extensions.data(),
 	};
@@ -40,6 +49,30 @@ void Renderer::SetupInstance()
 		vkCreateInstance( &instanceCreateInfo, nullptr, &this->context.instance ), 
 		"Create instance"
 	);
+
+	auto DebugUtilsMessenger = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+		vkGetInstanceProcAddr( this->context.instance, "vkCreateDebugUtilsMessengerEXT" )
+	);
+
+	if( DebugUtilsMessenger != nullptr )
+	{
+		VkDebugUtilsMessengerCreateInfoEXT debugInfo =
+		{
+			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+			.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
+			.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT,
+			.pfnUserCallback = this->DebugCallback
+		};
+
+		DebugUtilsMessenger( this->context.instance, &debugInfo, 0, &this->context.debugMessenger );
+	}
+}
+
+VkBool32 VKAPI_PTR Renderer::DebugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData )
+{
+	std::cout << std::endl << pCallbackData->pMessage << std::endl;
+
+	return VK_SUCCESS;
 }
 
 void Renderer::SetupSurface( const Window& window )
@@ -68,7 +101,7 @@ void Renderer::SetupGPU()
 	std::vector<VkPhysicalDevice> gpus(gpusAvailable);
 	this->Validate(
 		vkEnumeratePhysicalDevices( this->context.instance, &gpusAvailable, gpus.data()),
-		"Get physical devices data"
+		"Get physical devices array"
 	);
 
 	for( const auto& gpu : gpus )
@@ -79,9 +112,28 @@ void Renderer::SetupGPU()
 		this->context.gpu.index = index;
 	}
 
+	float queuePriority = 1.0f;
+
+	VkDeviceQueueCreateInfo queueInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+		.queueFamilyIndex = this->context.gpu.index,
+		.queueCount = 1,
+		.pQueuePriorities = &queuePriority,
+	};
+
+	std::array<const char*, 1> extensions =
+	{
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	};
+
 	VkDeviceCreateInfo deviceInfo =
 	{
-		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.queueCreateInfoCount = 1,
+		.pQueueCreateInfos = &queueInfo,
+		.enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
+		.ppEnabledExtensionNames = extensions.data(),
 	};
 
 	this->Validate( 
@@ -113,6 +165,70 @@ uint32_t Renderer::GetGPUIndex( const VkPhysicalDevice& gpu ) const
 	}
 
 	throw std::runtime_error( "GPU was not detected!" );
+}
+
+void Renderer::SetupSwapchain()
+{
+	uint32_t formatCount;
+	this->Validate( vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, 0 ),
+		"Get GPU Surface Formats count"
+	);
+
+	std::vector<VkSurfaceFormatKHR> surfaceFormats( formatCount );
+	this->Validate(
+		vkGetPhysicalDeviceSurfaceFormatsKHR( this->context.gpu.physicalDevice, this->context.surface, &formatCount, surfaceFormats.data()),
+		"Get GPU Surface Formats array"
+	);
+
+	for( auto& format : surfaceFormats )
+	{
+		if( format.format == VK_FORMAT_B8G8R8A8_SRGB )
+		{
+			this->context.surfaceFormat = format;
+			break;
+		}
+	}
+
+	VkSurfaceCapabilitiesKHR surfaceCapabilities;
+	this->Validate(
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR( this->context.gpu.physicalDevice, this->context.surface, &surfaceCapabilities ),
+		"Get GPU Surface Capabilities"
+	);
+
+	auto& sc = surfaceCapabilities;
+	uint32_t imageCount = sc.minImageCount + 1 > sc.maxImageCount ? sc.minImageCount : sc.minImageCount + 1;
+
+	VkSwapchainCreateInfoKHR swapchainInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = this->context.surface,
+		.minImageCount = imageCount,
+		.imageFormat = this->context.surfaceFormat.format,
+		.imageExtent = surfaceCapabilities.currentExtent,
+		.imageArrayLayers = 1,
+		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.preTransform = surfaceCapabilities.currentTransform,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+	};
+
+	this->Validate(
+		vkCreateSwapchainKHR( this->context.gpu.logicalDevice, &swapchainInfo, 0, &this->context.swapchain.chain ) ,
+		"Create swapchain"
+	);
+
+	this->Validate(
+		vkGetSwapchainImagesKHR( this->context.gpu.logicalDevice, this->context.swapchain.chain, &this->context.swapchain.imageCount, 0 ),
+		"Get Swapchain images count"
+	);
+
+	this->context.swapchain.images.reserve(this->context.swapchain.imageCount);
+	this->Validate(
+		vkGetSwapchainImagesKHR( 
+			this->context.gpu.logicalDevice, this->context.swapchain.chain,
+			&this->context.swapchain.imageCount, this->context.swapchain.images.data()
+		),
+		"Get Swapchain images array"
+	);
 }
 
 void Renderer::Validate( VkResult result, const std::string& whatWasValidatedMessage ) const
