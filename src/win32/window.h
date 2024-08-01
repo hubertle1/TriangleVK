@@ -12,7 +12,7 @@ public:
 	void OnUpdate() const;
 
 private:
-	HWND window;
+	HWND window = nullptr;
 	static bool isRunning;
 	const char* className = "vulkan_triangle";
 
