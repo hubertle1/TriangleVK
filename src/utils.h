@@ -3,13 +3,20 @@
 #include <string>
 #include <vulkan/vulkan.h>
 
-
-void Validate( VkResult result, const std::string& whatWasValidatedMessage )
+inline void Validate( const VkResult& result )
 {
 	if( result != VK_SUCCESS )
 	{
 		std::cerr << "Vulkan returned status: " << result << std::endl;
 		__debugbreak();
+	}
+}
+
+inline void Validate( const VkResult& result, const std::string& whatWasValidatedMessage )
+{
+	if( result != VK_SUCCESS )
+	{
+		Validate( result );
 	}
 	else
 	{

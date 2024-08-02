@@ -1,5 +1,7 @@
 #pragma once
 #include "win32/window.h"
+#include "utils.h"
+
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -27,7 +29,16 @@ struct VulkanContext
 		VkPhysicalDevice physicalDevice = nullptr;
 		VkDevice logicalDevice = nullptr;
 		uint32_t index = 0;
+		VkQueue queue = nullptr;
 	} gpu;
+
+	struct Semaphores
+	{
+		VkSemaphore submit = nullptr;
+		VkSemaphore acquire = nullptr;
+	} semaphore;
+
+	VkCommandPool commandPool = nullptr;
 };
 
 class Context
@@ -55,4 +66,7 @@ private:
 
 	void SetupSwapchain();
 	VkSurfaceFormatKHR GetSurfaceFormat() const;
+
+	void SetupCommandPool();
+	void SetupSemaphores();
 };

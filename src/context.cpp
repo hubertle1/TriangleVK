@@ -1,5 +1,5 @@
+#pragma once
 #include "context.h"
-#include "utils.h"
 
 #include <array>
 #include <iostream>
@@ -12,6 +12,8 @@ Context::Context( const Window& window )
 	this->SetupSurface( window );
 	this->SetupGPU();
 	this->SetupSwapchain();
+	this->SetupCommandPool();
+	this->SetupSemaphores();
 }
 
 const VulkanContext& Context::Get() const
@@ -135,6 +137,8 @@ void Context::SetupGPU()
 		vkCreateDevice( this->context.gpu.physicalDevice, &deviceInfo, 0, &this->context.gpu.logicalDevice ),
 		"Detect GPU"
 	);
+
+	vkGetDeviceQueue( this->context.gpu.logicalDevice, this->context.gpu.index, 0, &this->context.gpu.queue );
 }
 
 std::pair<const VkPhysicalDevice&, const uint32_t&> Context::DetectGPU() const
@@ -217,7 +221,7 @@ void Context::SetupSwapchain()
 		"Get Swapchain images count"
 	);
 
-	this->context.swapchain.images.reserve(this->context.swapchain.imageCount);
+	this->context.swapchain.images.resize(this->context.swapchain.imageCount);
 	Validate(
 		vkGetSwapchainImagesKHR( 
 			this->context.gpu.logicalDevice, this->context.swapchain.chain,
@@ -247,4 +251,39 @@ VkSurfaceFormatKHR Context::GetSurfaceFormat() const
 			return format;
 		}
 	}
+
+	throw std::runtime_error( "Cannot determine the surface format!" );
+}
+
+void Context::SetupCommandPool()
+{
+	VkCommandPoolCreateInfo poolInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.queueFamilyIndex = this->context.gpu.index
+	};
+
+	Validate(
+		vkCreateCommandPool( this->context.gpu.logicalDevice, &poolInfo, 0, &this->context.commandPool ),
+		"Create Command Pool"
+	);
+}
+
+void Context::SetupSemaphores()
+{
+	VkSemaphoreCreateInfo semaphoreInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+
+	};
+
+	Validate(
+		vkCreateSemaphore( this->context.gpu.logicalDevice, &semaphoreInfo, 0, &this->context.semaphore.acquire ),
+		"Create acquire semaphore"
+	);
+	
+	Validate(
+		vkCreateSemaphore( this->context.gpu.logicalDevice, &semaphoreInfo, 0, &this->context.semaphore.submit ),
+		"Create submit semaphore"
+	);
 }
