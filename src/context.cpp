@@ -14,6 +14,7 @@ Context::Context( const Window& window )
 	this->SetupSwapchain();
 	this->SetupCommandPool();
 	this->SetupSemaphores();
+	this->SetupRenderPass();
 }
 
 const VulkanContext& Context::Get() const
@@ -285,5 +286,49 @@ void Context::SetupSemaphores()
 	Validate(
 		vkCreateSemaphore( this->context.gpu.logicalDevice, &semaphoreInfo, 0, &this->context.semaphore.submit ),
 		"Create submit semaphore"
+	);
+}
+
+void Context::SetupRenderPass()
+{
+	VkAttachmentDescription attachment =
+	{
+		.format = this->context.surfaceFormat.format,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+	};
+
+	std::vector<VkAttachmentDescription> attachmentDescriptions =
+	{
+		attachment
+	};
+
+	VkAttachmentReference colorAttachmentRef =
+	{
+		.attachment = 0,
+		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	};
+
+	VkSubpassDescription subpassDescription =
+	{
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &colorAttachmentRef,
+	};
+
+	VkRenderPassCreateInfo renderPassInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+		.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size()),
+		.pAttachments = attachmentDescriptions.data(),
+		.subpassCount = 1,
+		.pSubpasses = &subpassDescription,
+	};
+
+	Validate(
+		vkCreateRenderPass( this->context.gpu.logicalDevice, &renderPassInfo, 0, &this->context.renderPass ),
+		"Create render pass"
 	);
 }

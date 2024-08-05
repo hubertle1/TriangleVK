@@ -39,6 +39,7 @@ struct VulkanContext
 	} semaphore;
 
 	VkCommandPool commandPool = nullptr;
+	VkRenderPass renderPass = nullptr;
 };
 
 class Context
@@ -69,4 +70,5 @@ private:
 
 	void SetupCommandPool();
 	void SetupSemaphores();
+	void SetupRenderPass();
 };
