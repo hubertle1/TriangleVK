@@ -13,12 +13,13 @@ Context::Context( const Window& window )
 	this->SetupGPU();
 	
 	this->SetupSwapchain();
+	this->SetupRenderPass();
+
 	this->SetupImageViews();
 	this->SetupFrameBuffers( window );
 
 	this->SetupCommandPool();
 	this->SetupSemaphores();
-	this->SetupRenderPass();
 }
 
 const VulkanContext& Context::Get() const
@@ -352,6 +353,7 @@ void Context::SetupImageViews()
 		},
 	};
 
+	this->context.imageViews.resize( this->context.swapchain.imageCount );
 	for( uint32_t i = 0; i < this->context.swapchain.imageCount; ++i )
 	{
 		imageViewCreateInfo.image = this->context.swapchain.images[ i ];

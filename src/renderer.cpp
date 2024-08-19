@@ -27,33 +27,31 @@ void Renderer::OnUpdate()
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 	};
 	Validate( vkBeginCommandBuffer( commandBuffer, &beginInfo ) );
-
-	VkRenderPassBeginInfo renderPassBeginInfo =
+	
+	VkClearValue clearValue =
 	{
-		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.renderPass = ctx.renderPass
+		.color = { 0.25f, 0.25f, 1.0f, 1.0f }
 	};
 
 	const auto& screenSize = this->window.GetScreenSize();
-	renderPassBeginInfo.renderArea.extent = {
-		screenSize.first,
-		screenSize.second
+	VkRenderPassBeginInfo renderPassBeginInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		.renderPass = ctx.renderPass,
+		.framebuffer = ctx.frameBuffers[imageIndex],
+		.renderArea = 
+		{
+			.extent = {
+				screenSize.first,
+				screenSize.second
+			}	
+		},
+		.clearValueCount = 1,
+		.pClearValues = &clearValue
 	};
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	// render
-	{
-		VkClearColorValue color = { 0.25f, 0.25f, 1.0f, 1.0f };
-		VkImageSubresourceRange range =
-		{
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.levelCount = 1,
-			.layerCount = 1,
-		};
-
-		vkCmdClearColorImage( commandBuffer, ctx.swapchain.images.at( imageIndex ), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, &color, 1, &range );
-	}
+	vkCmdEndRenderPass( commandBuffer );
 
 	Validate( vkEndCommandBuffer( commandBuffer ) );
 
@@ -87,6 +85,7 @@ void Renderer::OnUpdate()
 
 	Validate( vkDeviceWaitIdle( ctx.gpu.logicalDevice ) );
 
+	vkDeviceWaitIdle( ctx.gpu.logicalDevice );
 	vkFreeCommandBuffers( ctx.gpu.logicalDevice, ctx.commandPool, 1, &commandBuffer );
 }
 
