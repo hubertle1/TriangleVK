@@ -11,7 +11,11 @@ Context::Context( const Window& window )
 	this->SetupInstance();
 	this->SetupSurface( window );
 	this->SetupGPU();
+	
 	this->SetupSwapchain();
+	this->SetupImageViews();
+	this->SetupFrameBuffers( window );
+
 	this->SetupCommandPool();
 	this->SetupSemaphores();
 	this->SetupRenderPass();
@@ -331,4 +335,48 @@ void Context::SetupRenderPass()
 		vkCreateRenderPass( this->context.gpu.logicalDevice, &renderPassInfo, 0, &this->context.renderPass ),
 		"Create render pass"
 	);
+}
+
+void Context::SetupImageViews()
+{
+	VkImageViewCreateInfo imageViewCreateInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = this->context.surfaceFormat.format,
+		.subresourceRange = 
+		{
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+		},
+	};
+
+	for( uint32_t i = 0; i < this->context.swapchain.imageCount; ++i )
+	{
+		imageViewCreateInfo.image = this->context.swapchain.images[ i ];
+		Validate(vkCreateImageView( this->context.gpu.logicalDevice, &imageViewCreateInfo, 0, &this->context.imageViews[i] ));
+	}
+}
+
+void Context::SetupFrameBuffers( const Window& window )
+{
+	const auto screenSize = window.GetScreenSize();
+
+	VkFramebufferCreateInfo frameBufferCreateInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+		.renderPass = this->context.renderPass,
+		.attachmentCount = 1,
+		.width = screenSize.first,
+		.height = screenSize.second,
+		.layers = 1,
+	};
+
+	this->context.frameBuffers.resize( this->context.swapchain.imageCount );
+	for( uint32_t i = 0; i < this->context.swapchain.imageCount; ++i )
+	{
+		frameBufferCreateInfo.pAttachments = &this->context.imageViews[ i ];
+		Validate( vkCreateFramebuffer( this->context.gpu.logicalDevice, &frameBufferCreateInfo, 0, &this->context.frameBuffers[i]) );
+	}
 }

@@ -40,12 +40,15 @@ struct VulkanContext
 
 	VkCommandPool commandPool = nullptr;
 	VkRenderPass renderPass = nullptr;
+
+	std::vector<VkImageView> imageViews = {};
+	std::vector<VkFramebuffer> frameBuffers = {};
 };
 
 class Context
 {
 public:
-	Context(const Window& window);
+	Context( const Window& window );
 	const VulkanContext& Get() const;
 
 private:
@@ -71,4 +74,6 @@ private:
 	void SetupCommandPool();
 	void SetupSemaphores();
 	void SetupRenderPass();
+	void SetupImageViews();
+	void SetupFrameBuffers( const Window& window );
 };

@@ -1,6 +1,6 @@
 #include "renderer.h"
 
-Renderer::Renderer( const Window& window ) : context( Context( window ) )
+Renderer::Renderer( const Window& window ) : window(window), context( Context( window ) )
 {
 }
 
@@ -27,6 +27,20 @@ void Renderer::OnUpdate()
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 	};
 	Validate( vkBeginCommandBuffer( commandBuffer, &beginInfo ) );
+
+	VkRenderPassBeginInfo renderPassBeginInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		.renderPass = ctx.renderPass
+	};
+
+	const auto& screenSize = this->window.GetScreenSize();
+	renderPassBeginInfo.renderArea.extent = {
+		screenSize.first,
+		screenSize.second
+	};
+
+	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 	// render
 	{

@@ -7,5 +7,6 @@ public:
 	void OnUpdate();
 
 private:
+	Window window;
 	Context context;
 };
