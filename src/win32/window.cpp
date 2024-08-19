@@ -46,6 +46,17 @@ HWND Window::GetWindow() const
 	return this->window;
 }
 
+std::pair<uint32_t, uint32_t> Window::GetScreenSize() const
+{
+	RECT rect;
+	GetClientRect( this->window, &rect );
+
+	return std::pair<uint32_t, uint32_t>(
+		rect.right - rect.left,
+		rect.bottom - rect.top
+	);
+}
+
 bool Window::IsOpen() const
 {
 	return this->isRunning;

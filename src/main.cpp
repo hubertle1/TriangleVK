@@ -9,6 +9,7 @@ int main()
 	while( window.IsOpen() )
 	{
 		window.OnUpdate();
+		renderer.OnUpdate();
 	}
 
 	return 0;

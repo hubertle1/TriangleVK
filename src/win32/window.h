@@ -8,6 +8,7 @@ public:
 	Window(const std::string& windowName, int width = 640, int height = 480);
 	HINSTANCE GetModule() const;
 	HWND GetWindow() const;
+	std::pair<uint32_t, uint32_t> GetScreenSize() const;
 	bool IsOpen() const;
 	void OnUpdate() const;
 
