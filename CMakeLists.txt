@@ -21,3 +21,34 @@ endif()
 
 find_package(Vulkan REQUIRED)
 target_link_libraries(TriangleVK Vulkan::Vulkan)
+
+FILE(GLOB_RECURSE shaderFiles "assets/shaders/*")
+
+list(LENGTH shaderFiles fileCount)
+if(NOT fileCount EQUAL 0)
+
+  set(shaderOutputs)
+
+  foreach(shaderFile IN LISTS shaderFiles)
+    cmake_path(ABSOLUTE_PATH shaderFile NORMALIZE)
+    cmake_path(GET shaderFile FILENAME shaderName)
+    
+    set(outputFile "assets/shaders/${shaderName}.spv")
+
+    add_custom_command(
+      OUTPUT ${outputFile}
+      COMMAND Vulkan::glslc "${shaderFile}" -o "${outputFile}"
+      DEPENDS "${shaderFile}"
+      COMMENT "Compiling shader: ${shaderFile}"
+    )
+
+    list(APPEND shaderOutputs "${outputFile}")
+  endforeach()
+
+  # Create a custom target to compile shaders
+  add_custom_target(compile_shaders ALL DEPENDS ${shaderOutputs})
+
+  # Ensure that shaders are compiled before building the executable
+  add_dependencies(TriangleVK compile_shaders)
+
+endif()
