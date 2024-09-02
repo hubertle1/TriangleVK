@@ -12,7 +12,7 @@ endif()
 project ("TriangleVK")
 
 # Add source to this project's executable.
-FILE(GLOB_RECURSE codeFiles "src/*")
+FILE(GLOB_RECURSE codeFiles "src/*" "assets/shaders/*")
 add_executable (TriangleVK ${codeFiles})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
@@ -45,8 +45,17 @@ if(NOT fileCount EQUAL 0)
     list(APPEND shaderOutputs "${outputFile}")
   endforeach()
 
-  # Create a custom target to compile shaders
-  add_custom_target(compile_shaders ALL DEPENDS ${shaderOutputs})
+  # Add custom command to clean up old shaders
+  add_custom_target(clean_shaders
+    COMMAND ${CMAKE_COMMAND} -E echo "Cleaning up previous shaders..."
+    COMMAND ${CMAKE_COMMAND} -E rm -f ${CMAKE_CURRENT_BINARY_DIR}/*.spv
+    COMMENT "Removing old shader files..."
+  )
+
+  # Ensure that shaders are cleaned and then compiled
+  add_custom_target(compile_shaders ALL
+    DEPENDS clean_shaders ${shaderOutputs}
+  )
 
   # Ensure that shaders are compiled before building the executable
   add_dependencies(TriangleVK compile_shaders)
