@@ -43,6 +43,12 @@ struct VulkanContext
 
 	std::vector<VkImageView> imageViews = {};
 	std::vector<VkFramebuffer> frameBuffers = {};
+
+	struct PipelineInfo
+	{
+		VkPipelineLayout layout = nullptr;
+		VkPipeline pipeline = nullptr;
+	} pipelineInfo;
 };
 
 class Context
@@ -62,7 +68,7 @@ private:
 		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 		void* pUserData
 	);
-	
+
 	void SetupSurface( const Window& window );
 	void SetupGPU();
 	std::pair<const VkPhysicalDevice&, const uint32_t&> DetectGPU() const;
@@ -76,4 +82,9 @@ private:
 	void SetupRenderPass();
 	void SetupImageViews();
 	void SetupFrameBuffers( const Window& window );
+
+	void SetupGraphicsPipeline();
+
+	VkShaderModule CreateShaderModule( std::string path );
+	std::pair<void*, uint32_t> ReadShaderFile( std::string path );
 };

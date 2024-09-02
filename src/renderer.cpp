@@ -51,6 +51,32 @@ void Renderer::OnUpdate()
 	};
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	VkRect2D scissor =
+	{
+		.offset = {0, 0},
+		.extent = {
+			screenSize.first,
+			screenSize.second
+		}
+	};
+
+	VkViewport viewport =
+	{
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = static_cast<float>( screenSize.first ),
+		.height = static_cast<float>( screenSize.second ),
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
+	};
+
+	vkCmdSetScissor( commandBuffer, 0, 1, &scissor );
+	vkCmdSetViewport( commandBuffer, 0, 1, &viewport );
+
+	vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipelineInfo.pipeline );
+	vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
+
 	vkCmdEndRenderPass( commandBuffer );
 
 	Validate( vkEndCommandBuffer( commandBuffer ) );
