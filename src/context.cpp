@@ -20,6 +20,8 @@ Context::Context( const Window& window )
 
 	this->SetupCommandPool();
 	this->SetupSemaphores();
+
+	this->SetupGraphicsPipeline();
 }
 
 const VulkanContext& Context::Get() const
@@ -381,4 +383,175 @@ void Context::SetupFrameBuffers( const Window& window )
 		frameBufferCreateInfo.pAttachments = &this->context.imageViews[ i ];
 		Validate( vkCreateFramebuffer( this->context.gpu.logicalDevice, &frameBufferCreateInfo, 0, &this->context.frameBuffers[i]) );
 	}
+}
+
+void Context::SetupGraphicsPipeline()
+{
+	VkPipelineLayoutCreateInfo layoutInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+	};
+
+	Validate(
+		vkCreatePipelineLayout( this->context.gpu.logicalDevice, &layoutInfo, 0, &this->context.pipelineInfo.layout ),
+		"Create layout pipeline"
+	);
+
+	VkShaderModule vertexShader = this->CreateShaderModule( "assets/shaders/shader.vert.spv" );
+	VkShaderModule fragmentShader = this->CreateShaderModule( "assets/shaders/shader.frag.spv" );
+
+	VkPipelineShaderStageCreateInfo vertexStage =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_VERTEX_BIT,
+		.module = vertexShader,
+		.pName = "main",
+	};
+
+	VkPipelineShaderStageCreateInfo fragmentStage =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+		.module = fragmentShader,
+		.pName = "main",
+	};
+	
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages =
+	{
+		vertexStage, fragmentStage
+	};
+
+	VkPipelineVertexInputStateCreateInfo vertexInputState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+
+	};
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachment =
+	{
+		.blendEnable = VK_FALSE,
+		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+	};
+
+	VkPipelineColorBlendStateCreateInfo colorBlendState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		.attachmentCount = 1,
+		.pAttachments = &colorBlendAttachment,
+	};
+
+	VkPipelineRasterizationStateCreateInfo rasterizationState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		.polygonMode = VK_POLYGON_MODE_FILL,
+		.cullMode = VK_CULL_MODE_BACK_BIT,
+		.frontFace = VK_FRONT_FACE_CLOCKWISE,
+		.lineWidth = 1.0f,
+	};
+
+	VkPipelineMultisampleStateCreateInfo multisampleState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+	};
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+	};
+
+	VkRect2D scissors =	{};
+	VkViewport viewport = {};
+
+	VkPipelineViewportStateCreateInfo viewportState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		.viewportCount = 1,
+		.pViewports = &viewport,
+		.scissorCount = 1,
+		.pScissors = &scissors,
+	};
+
+	std::vector<VkDynamicState> dynamicStates =
+	{
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+	};
+
+	VkPipelineDynamicStateCreateInfo dynamicState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
+		.pDynamicStates = dynamicStates.data(),
+	};
+
+	VkGraphicsPipelineCreateInfo pipelineInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.stageCount = static_cast<uint32_t>(shaderStages.size()),
+		.pStages = shaderStages.data(),
+		.pVertexInputState = &vertexInputState,
+		.pInputAssemblyState = &inputAssemblyState,
+		.pViewportState = &viewportState,
+		.pRasterizationState = &rasterizationState,
+		.pMultisampleState = &multisampleState,
+		.pColorBlendState = &colorBlendState,
+		.pDynamicState = &dynamicState,
+		.layout = this->context.pipelineInfo.layout,
+		.renderPass = this->context.renderPass,
+	};
+
+	Validate(
+		vkCreateGraphicsPipelines( this->context.gpu.logicalDevice, 0, 1, &pipelineInfo, 0, &this->context.pipelineInfo.pipeline ),
+		"Create graphics pipeline"
+	);
+}
+
+VkShaderModule Context::CreateShaderModule( std::string path )
+{
+	VkShaderModule shader;
+	auto shaderBuffer = this->ReadShaderFile( path );
+
+	VkShaderModuleCreateInfo shaderInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.codeSize = shaderBuffer.second,
+		.pCode = static_cast<uint32_t*>( shaderBuffer.first ),
+	};
+
+	Validate( vkCreateShaderModule( this->context.gpu.logicalDevice, &shaderInfo, 0, &shader ) );
+	delete shaderBuffer.first;
+
+	return shader;
+}
+
+std::pair<void*, uint32_t> Context::ReadShaderFile( std::string path )
+{
+	const std::pair<void*, uint32_t>& failStatus = { nullptr, 0 };
+
+	HANDLE file = CreateFile( path.c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+	if( file == INVALID_HANDLE_VALUE )
+	{
+		throw std::runtime_error( "Failed to open file under: " + path );
+	}
+
+	LARGE_INTEGER size;
+	if( !GetFileSizeEx( file, &size ) )
+	{
+		CloseHandle( file );
+		throw std::runtime_error("Failed to get file size");
+	}
+
+	DWORD bytesRead;
+	auto buffer = new char[ size.QuadPart ];
+
+	if( !ReadFile( file, buffer, static_cast<DWORD>(size.QuadPart), &bytesRead, 0 ) )
+	{
+		CloseHandle( file );
+		throw std::runtime_error("Failed to read file contents");
+	}
+
+	CloseHandle( file );
+	return { buffer , static_cast<uint32_t>( size.QuadPart )};
 }
