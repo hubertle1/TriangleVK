@@ -1,6 +1,8 @@
 #include "renderer.h"
 
-Renderer::Renderer( const Window& window ) : window(window), context( Context( window ) )
+Renderer::Renderer( const Window& window, const std::vector<Vertex>& vertices ) : 
+	window(window), 
+	context( Context( window, vertices ) )
 {
 }
 
@@ -73,6 +75,10 @@ void Renderer::OnUpdate()
 
 	vkCmdSetScissor( commandBuffer, 0, 1, &scissor );
 	vkCmdSetViewport( commandBuffer, 0, 1, &viewport );
+
+	VkBuffer vertexBuffers[] = { ctx.vertexBuffer.buffer };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers( commandBuffer, 0, 1, vertexBuffers, offsets );
 
 	vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipelineInfo.pipeline );
 	vkCmdDraw( commandBuffer, 3, 1, 0, 0 );

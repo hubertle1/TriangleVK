@@ -5,6 +5,11 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
+struct Vertex
+{
+	float position[ 2 ];
+};
+
 struct VulkanContext
 {
 	VkInstance instance = nullptr;
@@ -49,12 +54,19 @@ struct VulkanContext
 		VkPipelineLayout layout = nullptr;
 		VkPipeline pipeline = nullptr;
 	} pipelineInfo;
+
+	struct VertexBuffer
+	{
+		VkBuffer buffer = nullptr;
+		VkDeviceMemory memory = nullptr;
+		VkDeviceSize size = 0;
+	} vertexBuffer;
 };
 
 class Context
 {
 public:
-	Context( const Window& window );
+	Context( const Window& window, const std::vector<Vertex>& vertices );
 	const VulkanContext& Get() const;
 
 private:
@@ -84,7 +96,9 @@ private:
 	void SetupFrameBuffers( const Window& window );
 
 	void SetupGraphicsPipeline();
-
 	VkShaderModule CreateShaderModule( std::string path );
 	std::pair<void*, uint32_t> ReadShaderFile( std::string path );
+
+	void SetupVertexBuffer( const std::vector<Vertex>& vertices );
+	uint32_t GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const;
 };
