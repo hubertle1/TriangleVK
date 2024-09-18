@@ -4,7 +4,7 @@ class Renderer
 {
 public:
 	Renderer( const Window& window, const std::vector<Vertex>& vertices );
-	void OnUpdate();
+	void OnUpdate( const glm::vec3& rotation );
 
 private:
 	Window window;

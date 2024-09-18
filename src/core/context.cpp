@@ -6,8 +6,6 @@
 #include <stdexcept>
 #include <vulkan/vulkan_win32.h>
 
-#include <glm/glm.hpp>
-
 Context::Context( const Window& window, const std::vector<Vertex>& vertices )
 {
 	this->SetupInstance();
@@ -476,7 +474,7 @@ void Context::SetupGraphicsPipeline()
 	{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = VK_CULL_MODE_BACK_BIT,
+		.cullMode = VK_CULL_MODE_NONE,
 		.frontFace = VK_FRONT_FACE_CLOCKWISE,
 		.lineWidth = 1.0f,
 	};
