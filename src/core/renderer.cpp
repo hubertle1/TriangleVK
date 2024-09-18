@@ -1,5 +1,8 @@
 #include "renderer.h"
 
+#include <chrono>
+#include <glm/gtc/matrix_transform.hpp>
+
 Renderer::Renderer( const Window& window, const std::vector<Vertex>& vertices ) : 
 	window(window), 
 	context( Context( window, vertices ) )
@@ -9,6 +12,17 @@ Renderer::Renderer( const Window& window, const std::vector<Vertex>& vertices ) 
 void Renderer::OnUpdate()
 {
 	auto& ctx = this->context.Get();
+
+	static auto startTime = std::chrono::high_resolution_clock::now();
+
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	float time = std::chrono::duration<float>( currentTime - startTime ).count();
+
+	glm::mat4 model = glm::rotate(
+		glm::mat4( 1.0f ),
+		time * glm::radians( 90.0f ),
+		glm::vec3( 0.0f, 1.0f, 0.0f )
+	);
 
 	uint32_t imageIndex = 0;
 	Validate( vkAcquireNextImageKHR( ctx.gpu.logicalDevice, ctx.swapchain.chain, 0, ctx.semaphore.acquire, 0, &imageIndex ) );
@@ -79,6 +93,15 @@ void Renderer::OnUpdate()
 	VkBuffer vertexBuffers[] = { ctx.vertexBuffer.buffer };
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers( commandBuffer, 0, 1, vertexBuffers, offsets );
+
+	vkCmdPushConstants(
+		commandBuffer,
+		ctx.pipelineInfo.layout,
+		VK_SHADER_STAGE_VERTEX_BIT,
+		0,
+		sizeof( glm::mat4 ),
+		&model
+	);
 
 	vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipelineInfo.pipeline );
 	vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
