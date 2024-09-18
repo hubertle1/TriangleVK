@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <vulkan/vulkan_win32.h>
 
-Context::Context( const Window& window )
+Context::Context( const Window& window, const std::vector<Vertex>& vertices )
 {
 	this->SetupInstance();
 	this->SetupSurface( window );
@@ -22,6 +22,7 @@ Context::Context( const Window& window )
 	this->SetupSemaphores();
 
 	this->SetupGraphicsPipeline();
+	this->SetupVertexBuffer( vertices );
 }
 
 const VulkanContext& Context::Get() const
@@ -421,10 +422,28 @@ void Context::SetupGraphicsPipeline()
 		vertexStage, fragmentStage
 	};
 
+	VkVertexInputBindingDescription bindingDescription =
+	{
+		.binding = 0,
+		.stride = sizeof( Vertex ),
+		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+	};
+
+	VkVertexInputAttributeDescription attributeDescription =
+	{
+		.location = 0,
+		.binding = 0,
+		.format = VK_FORMAT_R32G32_SFLOAT,
+		.offset = offsetof( Vertex, position ),
+	};
+
 	VkPipelineVertexInputStateCreateInfo vertexInputState =
 	{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &bindingDescription,
+		.vertexAttributeDescriptionCount = 1,
+		.pVertexAttributeDescriptions = &attributeDescription,
 	};
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachment =
@@ -502,6 +521,7 @@ void Context::SetupGraphicsPipeline()
 		.renderPass = this->context.renderPass,
 	};
 
+
 	Validate(
 		vkCreateGraphicsPipelines( this->context.gpu.logicalDevice, 0, 1, &pipelineInfo, 0, &this->context.pipelineInfo.pipeline ),
 		"Create graphics pipeline"
@@ -540,18 +560,76 @@ std::pair<void*, uint32_t> Context::ReadShaderFile( std::string path )
 	if( !GetFileSizeEx( file, &size ) )
 	{
 		CloseHandle( file );
-		throw std::runtime_error("Failed to get file size");
+		throw std::runtime_error( "Failed to get file size" );
 	}
 
 	DWORD bytesRead;
 	auto buffer = new char[ size.QuadPart ];
 
-	if( !ReadFile( file, buffer, static_cast<DWORD>(size.QuadPart), &bytesRead, 0 ) )
+	if( !ReadFile( file, buffer, static_cast<DWORD>( size.QuadPart ), &bytesRead, 0 ) )
 	{
 		CloseHandle( file );
-		throw std::runtime_error("Failed to read file contents");
+		throw std::runtime_error( "Failed to read file contents" );
 	}
 
 	CloseHandle( file );
-	return { buffer , static_cast<uint32_t>( size.QuadPart )};
+	return { buffer , static_cast<uint32_t>( size.QuadPart ) };
 }
+
+void Context::SetupVertexBuffer( const std::vector<Vertex>& vertices )
+{
+	VkDeviceSize bufferSize = sizeof( vertices[ 0 ] ) * vertices.size();
+
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = bufferSize;
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	Validate(
+		vkCreateBuffer( this->context.gpu.logicalDevice, &bufferInfo, nullptr, &this->context.vertexBuffer.buffer ),
+		"Failed to create vertex buffer"
+	);
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements( this->context.gpu.logicalDevice, this->context.vertexBuffer.buffer, &memRequirements );
+
+	VkMemoryAllocateInfo allocInfo = 
+	{
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = memRequirements.size,
+		.memoryTypeIndex = GetMemoryType(
+			memRequirements.memoryTypeBits,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		)
+	};
+	
+	Validate(
+		vkAllocateMemory( this->context.gpu.logicalDevice, &allocInfo, nullptr, &this->context.vertexBuffer.memory ),
+		"Failed to allocate vertex buffer memory"
+	);
+
+	vkBindBufferMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.buffer, this->context.vertexBuffer.memory, 0 );
+
+	void* dataToCopy;
+	vkMapMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.memory, 0, bufferSize, 0, &dataToCopy );
+	memcpy( dataToCopy, vertices.data(), (size_t)bufferSize );
+	vkUnmapMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.memory );
+}
+
+uint32_t Context::GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const
+{
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties( this->context.gpu.physicalDevice, &memProperties );
+
+	for( uint32_t i = 0; i < memProperties.memoryTypeCount; i++ )
+	{
+		if( ( typeFilter & ( 1 << i ) ) && ( memProperties.memoryTypes[ i ].propertyFlags & properties ) == properties )
+		{
+			return i;
+		}
+	}
+
+	throw std::runtime_error( "Failed to find suitable memory type" );
+}
+
