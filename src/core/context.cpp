@@ -388,9 +388,20 @@ void Context::SetupFrameBuffers( const Window& window )
 
 void Context::SetupGraphicsPipeline()
 {
+	VkPushConstantRange pushConstantRange =
+	{
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		.offset = 0,
+		.size = sizeof( glm::mat4 ),
+	};
+
 	VkPipelineLayoutCreateInfo layoutInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = 0,
+		.pSetLayouts = nullptr,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &pushConstantRange,
 	};
 
 	Validate(
@@ -463,7 +474,7 @@ void Context::SetupGraphicsPipeline()
 	{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = VK_CULL_MODE_BACK_BIT,
+		.cullMode = VK_CULL_MODE_NONE,
 		.frontFace = VK_FRONT_FACE_CLOCKWISE,
 		.lineWidth = 1.0f,
 	};

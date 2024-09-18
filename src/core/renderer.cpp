@@ -1,14 +1,37 @@
 #include "renderer.h"
 
+#include <chrono>
+#include <glm/gtc/matrix_transform.hpp>
+
 Renderer::Renderer( const Window& window, const std::vector<Vertex>& vertices ) : 
 	window(window), 
 	context( Context( window, vertices ) )
 {
 }
 
-void Renderer::OnUpdate()
+void Renderer::OnUpdate( const glm::vec3& rotation )
 {
 	auto& ctx = this->context.Get();
+
+	static auto startTime = std::chrono::high_resolution_clock::now();
+
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	float time = std::chrono::duration<float>( currentTime - startTime ).count();
+
+	glm::mat4 model = glm::rotate(glm::mat4( 1.0f ), time * glm::radians( 90.0f ), rotation);
+	glm::mat4 view = glm::translate(glm::mat4( 1.0f ), glm::vec3( 0.0f, 0.0f, -2.0f ));
+
+	const auto& screenSize = this->window.GetScreenSize();
+	const float aspectRatio = static_cast<float>( screenSize.first ) / static_cast<float>( screenSize.second );
+
+	glm::mat4 projection = glm::perspective(
+		glm::radians( 45.0f ),
+		aspectRatio,
+		0.1f,
+		10.0f
+	);
+
+	glm::mat4 mvp = projection * view * model;
 
 	uint32_t imageIndex = 0;
 	Validate( vkAcquireNextImageKHR( ctx.gpu.logicalDevice, ctx.swapchain.chain, 0, ctx.semaphore.acquire, 0, &imageIndex ) );
@@ -35,7 +58,6 @@ void Renderer::OnUpdate()
 		.color = { 0.25f, 0.25f, 1.0f, 1.0f }
 	};
 
-	const auto& screenSize = this->window.GetScreenSize();
 	VkRenderPassBeginInfo renderPassBeginInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -79,6 +101,15 @@ void Renderer::OnUpdate()
 	VkBuffer vertexBuffers[] = { ctx.vertexBuffer.buffer };
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers( commandBuffer, 0, 1, vertexBuffers, offsets );
+
+	vkCmdPushConstants(
+		commandBuffer,
+		ctx.pipelineInfo.layout,
+		VK_SHADER_STAGE_VERTEX_BIT,
+		0,
+		sizeof( glm::mat4 ),
+		&mvp
+	);
 
 	vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipelineInfo.pipeline );
 	vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
