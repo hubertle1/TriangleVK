@@ -15,6 +15,8 @@ project ("TriangleVK")
 FILE(GLOB_RECURSE codeFiles "src/*" "assets/shaders/*")
 add_executable (TriangleVK ${codeFiles})
 
+target_include_directories(TriangleVK PRIVATE "${CMAKE_SOURCE_DIR}/vendor")
+
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TriangleVK PROPERTY CXX_STANDARD 20)
 endif()
