@@ -61,3 +61,19 @@ if(NOT fileCount EQUAL 0)
   add_dependencies(TriangleVK compile_shaders)
 
 endif()
+
+set(textureSourceDir "${CMAKE_SOURCE_DIR}/assets/textures")
+
+add_custom_command(
+  TARGET TriangleVK POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+  "${textureSourceDir}" "${CMAKE_BINARY_DIR}/assets/textures"
+  COMMENT "Copying textures to output directory..."
+)
+
+add_custom_target(copy_textures ALL
+  DEPENDS ${textureSourceDir}
+  COMMENT "Ensuring textures are copied to the output directory..."
+)
+
+add_dependencies(TriangleVK copy_textures)
