@@ -5,10 +5,39 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <vector>
+#include <array>
+#include <glm/vec2.hpp>
 
 struct Vertex
 {
-	float position[ 2 ];
+	glm::vec2 position;
+	glm::vec2 texCoord;
+	
+    static VkVertexInputBindingDescription GetBindingDescription()
+    {
+        VkVertexInputBindingDescription bindingDescription = {};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(Vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        return bindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions()
+    {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(Vertex, position);
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, texCoord);
+
+        return attributeDescriptions;
+    }
 };
 
 struct VulkanContext
@@ -62,12 +91,27 @@ struct VulkanContext
 		VkDeviceMemory memory = nullptr;
 		VkDeviceSize size = 0;
 	} vertexBuffer;
+
+	struct Texture
+	{
+		VkImage image = nullptr;
+		VkDeviceMemory deviceMemory = nullptr;
+		VkImageView imageView = nullptr;
+		VkSampler sampler = nullptr;
+	} texture;
+
+	struct Descritor
+	{
+		VkDescriptorSetLayout setLayout = nullptr;
+		VkDescriptorPool pool = nullptr;
+		VkDescriptorSet set = nullptr;
+	} descriptor;
 };
 
 class Context
 {
 public:
-	Context( const Window& window, const std::vector<Vertex>& vertices );
+	Context( const Window& window, const std::vector<Vertex>& vertices, const std::string& texturePath );
 	const VulkanContext& Get() const;
 
 private:
@@ -96,10 +140,26 @@ private:
 	void SetupImageViews();
 	void SetupFrameBuffers( const Window& window );
 
+	void CreateDescriptorPool();
+	void CreateDescriptorSets();
+
+
 	void SetupGraphicsPipeline();
 	VkShaderModule CreateShaderModule( std::string path );
 	std::pair<void*, uint32_t> ReadShaderFile( std::string path );
 
 	void SetupVertexBuffer( const std::vector<Vertex>& vertices );
 	uint32_t GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const;
+
+	void LoadTextureImage( const std::string& texturePath );
+	void CreateBuffer( VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& bufferMemory ) const;
+	void CreateImage( uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory ) const;
+	void CopyBufferToImage( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height );
+	void TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout );
+	VkCommandBuffer BeginSingleTimeCommands() const;
+	void EndSingleTimeCommands( VkCommandBuffer commandBuffer ) const;
+
+	void CreateTextureImageView();
+	VkImageView CreateImageView( VkImage image ) const;
+	void CreateTextureSampler();
 };
