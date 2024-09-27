@@ -25,10 +25,12 @@ Context::Context( const Window& window, const std::vector<Vertex>& vertices, con
 	this->SetupSemaphores();
 
 	this->LoadTextureImage( texturePath );
+
 	this->CreateTextureImageView();
 	this->CreateTextureSampler();
 
 	this->SetupGraphicsPipeline();
+
 	this->CreateDescriptorPool();
 	this->CreateDescriptorSets();
 
@@ -405,351 +407,6 @@ void Context::SetupFrameBuffers( const Window& window )
 	}
 }
 
-void Context::CreateDescriptorPool()
-{
-	VkDescriptorPoolSize poolSize =
-	{
-		.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.descriptorCount = 1,
-	};
-
-	VkDescriptorPoolCreateInfo poolInfo =
-	{
-		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-		.maxSets = 1,
-		.poolSizeCount = 1,
-		.pPoolSizes = &poolSize,
-	};
-
-	Validate( vkCreateDescriptorPool( context.gpu.logicalDevice, &poolInfo, nullptr, &context.descriptor.pool ),
-		"Create descriptor pool" );
-}
-
-void Context::CreateDescriptorSets()
-{
-	if( context.descriptor.setLayout == nullptr )
-	{
-		throw std::runtime_error( "Descriptor set layout not created before allocating descriptor sets." );
-	}
-
-	VkDescriptorSetAllocateInfo allocInfo =
-	{
-		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-		.descriptorPool = context.descriptor.pool,
-		.descriptorSetCount = 1,
-		.pSetLayouts = &context.descriptor.setLayout,
-	};
-
-	Validate( vkAllocateDescriptorSets( context.gpu.logicalDevice, &allocInfo, &context.descriptor.set ),
-		"Allocate descriptor set" );
-
-	VkDescriptorImageInfo imageInfo =
-	{
-		.sampler = context.texture.sampler,
-		.imageView = context.texture.imageView,
-		.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-	};
-
-	VkWriteDescriptorSet descriptorWrite =
-	{
-		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstSet = context.descriptor.set,
-		.dstBinding = 0,
-		.dstArrayElement = 0,
-		.descriptorCount = 1,
-		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.pImageInfo = &imageInfo,
-	};
-
-	vkUpdateDescriptorSets( context.gpu.logicalDevice, 1, &descriptorWrite, 0, nullptr );
-}
-
-
-void Context::SetupGraphicsPipeline()
-{
-	VkDescriptorSetLayoutBinding samplerLayoutBinding =
-	{
-		.binding = 0,
-		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.descriptorCount = 1,
-		.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-		.pImmutableSamplers = nullptr,
-	};
-
-	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = 
-	{
-		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount = 1,
-		.pBindings = &samplerLayoutBinding,
-	};
-
-	Validate( vkCreateDescriptorSetLayout( context.gpu.logicalDevice, &descriptorSetLayoutInfo, nullptr, &context.descriptor.setLayout ),
-		"Create descriptor set layout" );
-
-	VkPushConstantRange pushConstantRange =
-	{
-		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-		.offset = 0,
-		.size = sizeof( glm::mat4 ),
-	};
-
-	VkPipelineLayoutCreateInfo layoutInfo =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-		.setLayoutCount = 1,
-		.pSetLayouts = &this->context.descriptor.setLayout,
-		.pushConstantRangeCount = 1,
-		.pPushConstantRanges = &pushConstantRange,
-	};
-
-	Validate(
-		vkCreatePipelineLayout( this->context.gpu.logicalDevice, &layoutInfo, 0, &this->context.pipelineInfo.layout ),
-		"Create pipeline layout"
-	);
-
-	VkShaderModule vertexShader = this->CreateShaderModule( "assets/shaders/shader.vert.spv" );
-	VkShaderModule fragmentShader = this->CreateShaderModule( "assets/shaders/shader.frag.spv" );
-
-	VkPipelineShaderStageCreateInfo vertexStage =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-		.stage = VK_SHADER_STAGE_VERTEX_BIT,
-		.module = vertexShader,
-		.pName = "main",
-	};
-
-	VkPipelineShaderStageCreateInfo fragmentStage =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-		.module = fragmentShader,
-		.pName = "main",
-	};
-	
-	std::vector<VkPipelineShaderStageCreateInfo> shaderStages =
-	{
-		vertexStage, fragmentStage
-	};
-
-	VkVertexInputBindingDescription bindingDescription =
-	{
-		.binding = 0,
-		.stride = sizeof( Vertex ),
-		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-	};
-
-	std::vector<VkVertexInputAttributeDescription> attributeDescriptions =
-	{
-		{
-			.location = 0,
-			.binding = 0,
-			.format = VK_FORMAT_R32G32_SFLOAT,
-			.offset = offsetof( Vertex, position ),
-		},
-		{
-			.location = 1,
-			.binding = 0,
-			.format = VK_FORMAT_R32G32_SFLOAT,
-			.offset = offsetof( Vertex, texCoord ),
-		},
-	};
-
-	VkPipelineVertexInputStateCreateInfo vertexInputState =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount = 1,
-		.pVertexBindingDescriptions = &bindingDescription,
-		.vertexAttributeDescriptionCount = static_cast<uint32_t>( attributeDescriptions.size() ),
-		.pVertexAttributeDescriptions = attributeDescriptions.data(),
-	};
-
-	VkPipelineColorBlendAttachmentState colorBlendAttachment =
-	{
-		.blendEnable = VK_FALSE,
-		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
-	};
-
-	VkPipelineColorBlendStateCreateInfo colorBlendState =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-		.attachmentCount = 1,
-		.pAttachments = &colorBlendAttachment,
-	};
-
-	VkPipelineRasterizationStateCreateInfo rasterizationState =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = VK_CULL_MODE_NONE,
-		.frontFace = VK_FRONT_FACE_CLOCKWISE,
-		.lineWidth = 1.0f,
-	};
-
-	VkPipelineMultisampleStateCreateInfo multisampleState =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-	};
-
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-	};
-
-	VkRect2D scissors =	{};
-	VkViewport viewport = {};
-
-	VkPipelineViewportStateCreateInfo viewportState =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-		.viewportCount = 1,
-		.pViewports = &viewport,
-		.scissorCount = 1,
-		.pScissors = &scissors,
-	};
-
-	std::vector<VkDynamicState> dynamicStates =
-	{
-		VK_DYNAMIC_STATE_VIEWPORT,
-		VK_DYNAMIC_STATE_SCISSOR,
-	};
-
-	VkPipelineDynamicStateCreateInfo dynamicState =
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-		.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
-		.pDynamicStates = dynamicStates.data(),
-	};
-
-	VkGraphicsPipelineCreateInfo pipelineInfo =
-	{
-		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount = static_cast<uint32_t>(shaderStages.size()),
-		.pStages = shaderStages.data(),
-		.pVertexInputState = &vertexInputState,
-		.pInputAssemblyState = &inputAssemblyState,
-		.pViewportState = &viewportState,
-		.pRasterizationState = &rasterizationState,
-		.pMultisampleState = &multisampleState,
-		.pColorBlendState = &colorBlendState,
-		.pDynamicState = &dynamicState,
-		.layout = this->context.pipelineInfo.layout,
-		.renderPass = this->context.renderPass,
-	};
-
-
-	Validate(
-		vkCreateGraphicsPipelines( this->context.gpu.logicalDevice, 0, 1, &pipelineInfo, 0, &this->context.pipelineInfo.pipeline ),
-		"Create graphics pipeline"
-	);
-}
-
-VkShaderModule Context::CreateShaderModule( std::string path )
-{
-	VkShaderModule shader;
-	auto shaderBuffer = this->ReadShaderFile( path );
-
-	VkShaderModuleCreateInfo shaderInfo =
-	{
-		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = shaderBuffer.second,
-		.pCode = static_cast<uint32_t*>( shaderBuffer.first ),
-	};
-
-	Validate( vkCreateShaderModule( this->context.gpu.logicalDevice, &shaderInfo, 0, &shader ) );
-	delete shaderBuffer.first;
-
-	return shader;
-}
-
-std::pair<void*, uint32_t> Context::ReadShaderFile( std::string path )
-{
-	const std::pair<void*, uint32_t>& failStatus = { nullptr, 0 };
-
-	HANDLE file = CreateFile( path.c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
-	if( file == INVALID_HANDLE_VALUE )
-	{
-		throw std::runtime_error( "Failed to open file under: " + path );
-	}
-
-	LARGE_INTEGER size;
-	if( !GetFileSizeEx( file, &size ) )
-	{
-		CloseHandle( file );
-		throw std::runtime_error( "Failed to get file size" );
-	}
-
-	DWORD bytesRead;
-	auto buffer = new char[ size.QuadPart ];
-
-	if( !ReadFile( file, buffer, static_cast<DWORD>( size.QuadPart ), &bytesRead, 0 ) )
-	{
-		CloseHandle( file );
-		throw std::runtime_error( "Failed to read file contents" );
-	}
-
-	CloseHandle( file );
-	return { buffer , static_cast<uint32_t>( size.QuadPart ) };
-}
-
-void Context::SetupVertexBuffer( const std::vector<Vertex>& vertices )
-{
-	VkDeviceSize bufferSize = sizeof( vertices[ 0 ] ) * vertices.size();
-
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = bufferSize;
-	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	Validate(
-		vkCreateBuffer( this->context.gpu.logicalDevice, &bufferInfo, nullptr, &this->context.vertexBuffer.buffer ),
-		"Create vertex buffer"
-	);
-
-	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements( this->context.gpu.logicalDevice, this->context.vertexBuffer.buffer, &memRequirements );
-
-	VkMemoryAllocateInfo allocInfo = 
-	{
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = memRequirements.size,
-		.memoryTypeIndex = GetMemoryType(
-			memRequirements.memoryTypeBits,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-		)
-	};
-	
-	Validate(
-		vkAllocateMemory( this->context.gpu.logicalDevice, &allocInfo, nullptr, &this->context.vertexBuffer.memory ),
-		"Allocate vertex buffer memory"
-	);
-
-	vkBindBufferMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.buffer, this->context.vertexBuffer.memory, 0 );
-
-	void* dataToCopy;
-	vkMapMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.memory, 0, bufferSize, 0, &dataToCopy );
-	memcpy( dataToCopy, vertices.data(), (size_t)bufferSize );
-	vkUnmapMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.memory );
-}
-
-uint32_t Context::GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const
-{
-	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties( this->context.gpu.physicalDevice, &memProperties );
-
-	for( uint32_t i = 0; i < memProperties.memoryTypeCount; i++ )
-	{
-		if( ( typeFilter & ( 1 << i ) ) && ( memProperties.memoryTypes[ i ].propertyFlags & properties ) == properties )
-		{
-			return i;
-		}
-	}
-
-	throw std::runtime_error( "Failed to find suitable memory type" );
-}
-
 
 void Context::LoadTextureImage( const std::string& texturePath )
 {
@@ -761,43 +418,13 @@ void Context::LoadTextureImage( const std::string& texturePath )
 	}
 
 	VkDeviceSize imageSize = static_cast<VkDeviceSize>( texWidth ) * texHeight * 4;
+	VkBuffer buffer;
+	VkDeviceMemory memory;
 
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-
-	CreateBuffer(
-		imageSize,
-		stagingBuffer,
-		stagingBufferMemory
-	);
-
-	void* data;
-	vkMapMemory( context.gpu.logicalDevice, stagingBufferMemory, 0, imageSize, 0, &data );
-	memcpy( data, pixels, static_cast<size_t>( imageSize ) );
-	vkUnmapMemory( context.gpu.logicalDevice, stagingBufferMemory );
-
-	stbi_image_free( pixels );
-
-	CreateImage(
-		texWidth, texHeight,
-		context.texture.image,
-		context.texture.deviceMemory
-	);
-
-	TransitionImageLayout( context.texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
-	CopyBufferToImage( stagingBuffer, context.texture.image, static_cast<uint32_t>( texWidth ), static_cast<uint32_t>( texHeight ) );
-	TransitionImageLayout( context.texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
-
-	vkDestroyBuffer( context.gpu.logicalDevice, stagingBuffer, nullptr );
-	vkFreeMemory( context.gpu.logicalDevice, stagingBufferMemory, nullptr );
-}
-
-void Context::CreateBuffer( VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& bufferMemory ) const
-{
 	VkBufferCreateInfo bufferInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = size,
+		.size = imageSize,
 		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 	};
@@ -805,30 +432,34 @@ void Context::CreateBuffer( VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory&
 	Validate( vkCreateBuffer( context.gpu.logicalDevice, &bufferInfo, nullptr, &buffer ),
 		"Create buffer" );
 
-	VkMemoryRequirements memRequirements;
+	VkMemoryRequirements memRequirements = {};
 	vkGetBufferMemoryRequirements( context.gpu.logicalDevice, buffer, &memRequirements );
 
-	VkMemoryAllocateInfo allocInfo =
+	VkMemoryAllocateInfo bufferMemoryInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize = memRequirements.size,
 		.memoryTypeIndex = GetMemoryType( memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ),
 	};
 
-	Validate( vkAllocateMemory( context.gpu.logicalDevice, &allocInfo, nullptr, &bufferMemory ) );
-	Validate( vkBindBufferMemory( context.gpu.logicalDevice, buffer, bufferMemory, 0 ) );
-}
+	Validate( vkAllocateMemory( context.gpu.logicalDevice, &bufferMemoryInfo, nullptr, &memory ) );
+	Validate( vkBindBufferMemory( context.gpu.logicalDevice, buffer, memory, 0 ) );
 
-void Context::CreateImage( uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory ) const
-{
+	void* data;
+	vkMapMemory( context.gpu.logicalDevice, memory, 0, imageSize, 0, &data );
+	memcpy( data, pixels, static_cast<size_t>( imageSize ) );
+	vkUnmapMemory( context.gpu.logicalDevice, memory );
+
+	stbi_image_free( pixels );
+
 	VkImageCreateInfo imageInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
 		.format = VK_FORMAT_R8G8B8A8_SRGB,
 		.extent = {
-			.width = width,
-			.height = height,
+			.width = static_cast<uint32_t>(texWidth),
+			.height = static_cast<uint32_t>(texHeight),
 			.depth = 1,
 		},
 		.mipLevels = 1,
@@ -840,43 +471,27 @@ void Context::CreateImage( uint32_t width, uint32_t height, VkImage& image, VkDe
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
 
-	Validate( vkCreateImage( context.gpu.logicalDevice, &imageInfo, nullptr, &image ),
+	Validate( vkCreateImage( context.gpu.logicalDevice, &imageInfo, nullptr, &this->context.texture.image ),
 		"Create image" );
 
-	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements( context.gpu.logicalDevice, image, &memRequirements );
+	vkGetImageMemoryRequirements( context.gpu.logicalDevice, this->context.texture.image, &memRequirements );
 
-	VkMemoryAllocateInfo allocInfo =
+	VkMemoryAllocateInfo imageMemoryInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize = memRequirements.size,
 		.memoryTypeIndex = GetMemoryType( memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ),
 	};
 
-	Validate( vkAllocateMemory( context.gpu.logicalDevice, &allocInfo, nullptr, &imageMemory ) );
-	Validate( vkBindImageMemory( context.gpu.logicalDevice, image, imageMemory, 0 ) );
-}
+	Validate( vkAllocateMemory( context.gpu.logicalDevice, &imageMemoryInfo, nullptr, &this->context.texture.deviceMemory ) );
+	Validate( vkBindImageMemory( context.gpu.logicalDevice, this->context.texture.image, this->context.texture.deviceMemory, 0 ) );
 
-void Context::CopyBufferToImage( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height )
-{
-	VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
+	TransitionImageLayout( context.texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+	CopyBufferToImage( buffer, context.texture.image, static_cast<uint32_t>( texWidth ), static_cast<uint32_t>( texHeight ) );
+	TransitionImageLayout( context.texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
 
-	VkBufferImageCopy region = {};
-	region.bufferOffset = 0;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
-
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = 1;
-
-	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = { width, height, 1 };
-
-	vkCmdCopyBufferToImage( commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region );
-
-	EndSingleTimeCommands( commandBuffer );
+	vkDestroyBuffer( context.gpu.logicalDevice, buffer, nullptr );
+	vkFreeMemory( context.gpu.logicalDevice, memory, nullptr );
 }
 
 void Context::TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout )
@@ -932,6 +547,28 @@ void Context::TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkI
 		0, nullptr,
 		0, nullptr,
 		1, &barrier );
+
+	EndSingleTimeCommands( commandBuffer );
+}
+
+void Context::CopyBufferToImage( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height )
+{
+	VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
+
+	VkBufferImageCopy region = {};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = { width, height, 1 };
+
+	vkCmdCopyBufferToImage( commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region );
 
 	EndSingleTimeCommands( commandBuffer );
 }
@@ -1020,4 +657,351 @@ void Context::CreateTextureSampler()
 
 	Validate( vkCreateSampler( context.gpu.logicalDevice, &samplerInfo, nullptr, &context.texture.sampler ),
 		"Texture sampler" );
+}
+
+
+void Context::SetupGraphicsPipeline()
+{
+	VkDescriptorSetLayoutBinding samplerLayoutBinding =
+	{
+		.binding = 0,
+		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		.descriptorCount = 1,
+		.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		.pImmutableSamplers = nullptr,
+	};
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.bindingCount = 1,
+		.pBindings = &samplerLayoutBinding,
+	};
+
+	Validate( vkCreateDescriptorSetLayout( context.gpu.logicalDevice, &descriptorSetLayoutInfo, nullptr, &context.descriptor.setLayout ),
+		"Create descriptor set layout" );
+
+	VkPushConstantRange pushConstantRange =
+	{
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		.offset = 0,
+		.size = sizeof( glm::mat4 ),
+	};
+
+	VkPipelineLayoutCreateInfo layoutInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = 1,
+		.pSetLayouts = &this->context.descriptor.setLayout,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &pushConstantRange,
+	};
+
+	Validate(
+		vkCreatePipelineLayout( this->context.gpu.logicalDevice, &layoutInfo, 0, &this->context.pipelineInfo.layout ),
+		"Create pipeline layout"
+	);
+
+	VkShaderModule vertexShader = this->CreateShaderModule( "assets/shaders/shader.vert.spv" );
+	VkShaderModule fragmentShader = this->CreateShaderModule( "assets/shaders/shader.frag.spv" );
+
+	VkPipelineShaderStageCreateInfo vertexStage =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_VERTEX_BIT,
+		.module = vertexShader,
+		.pName = "main",
+	};
+
+	VkPipelineShaderStageCreateInfo fragmentStage =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+		.module = fragmentShader,
+		.pName = "main",
+	};
+
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages =
+	{
+		vertexStage, fragmentStage
+	};
+
+	VkVertexInputBindingDescription bindingDescription =
+	{
+		.binding = 0,
+		.stride = sizeof( Vertex ),
+		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+	};
+
+	std::vector<VkVertexInputAttributeDescription> attributeDescriptions =
+	{
+		{
+			.location = 0,
+			.binding = 0,
+			.format = VK_FORMAT_R32G32_SFLOAT,
+			.offset = offsetof( Vertex, position ),
+		},
+		{
+			.location = 1,
+			.binding = 0,
+			.format = VK_FORMAT_R32G32_SFLOAT,
+			.offset = offsetof( Vertex, texCoord ),
+		},
+	};
+
+	VkPipelineVertexInputStateCreateInfo vertexInputState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &bindingDescription,
+		.vertexAttributeDescriptionCount = static_cast<uint32_t>( attributeDescriptions.size() ),
+		.pVertexAttributeDescriptions = attributeDescriptions.data(),
+	};
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachment =
+	{
+		.blendEnable = VK_FALSE,
+		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+	};
+
+	VkPipelineColorBlendStateCreateInfo colorBlendState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		.attachmentCount = 1,
+		.pAttachments = &colorBlendAttachment,
+	};
+
+	VkPipelineRasterizationStateCreateInfo rasterizationState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		.polygonMode = VK_POLYGON_MODE_FILL,
+		.cullMode = VK_CULL_MODE_NONE,
+		.frontFace = VK_FRONT_FACE_CLOCKWISE,
+		.lineWidth = 1.0f,
+	};
+
+	VkPipelineMultisampleStateCreateInfo multisampleState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+	};
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+	};
+
+	VkRect2D scissors = {};
+	VkViewport viewport = {};
+
+	VkPipelineViewportStateCreateInfo viewportState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		.viewportCount = 1,
+		.pViewports = &viewport,
+		.scissorCount = 1,
+		.pScissors = &scissors,
+	};
+
+	std::vector<VkDynamicState> dynamicStates =
+	{
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+	};
+
+	VkPipelineDynamicStateCreateInfo dynamicState =
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		.dynamicStateCount = static_cast<uint32_t>( dynamicStates.size() ),
+		.pDynamicStates = dynamicStates.data(),
+	};
+
+	VkGraphicsPipelineCreateInfo pipelineInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.stageCount = static_cast<uint32_t>( shaderStages.size() ),
+		.pStages = shaderStages.data(),
+		.pVertexInputState = &vertexInputState,
+		.pInputAssemblyState = &inputAssemblyState,
+		.pViewportState = &viewportState,
+		.pRasterizationState = &rasterizationState,
+		.pMultisampleState = &multisampleState,
+		.pColorBlendState = &colorBlendState,
+		.pDynamicState = &dynamicState,
+		.layout = this->context.pipelineInfo.layout,
+		.renderPass = this->context.renderPass,
+	};
+
+
+	Validate(
+		vkCreateGraphicsPipelines( this->context.gpu.logicalDevice, 0, 1, &pipelineInfo, 0, &this->context.pipelineInfo.pipeline ),
+		"Create graphics pipeline"
+	);
+}
+
+VkShaderModule Context::CreateShaderModule( std::string path )
+{
+	VkShaderModule shader;
+	auto shaderBuffer = this->ReadShaderFile( path );
+
+	VkShaderModuleCreateInfo shaderInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.codeSize = shaderBuffer.second,
+		.pCode = static_cast<uint32_t*>( shaderBuffer.first ),
+	};
+
+	Validate( vkCreateShaderModule( this->context.gpu.logicalDevice, &shaderInfo, 0, &shader ) );
+	delete shaderBuffer.first;
+
+	return shader;
+}
+
+std::pair<void*, uint32_t> Context::ReadShaderFile( std::string path )
+{
+	const std::pair<void*, uint32_t>& failStatus = { nullptr, 0 };
+
+	HANDLE file = CreateFile( path.c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+	if( file == INVALID_HANDLE_VALUE )
+	{
+		throw std::runtime_error( "Failed to open file under: " + path );
+	}
+
+	LARGE_INTEGER size;
+	if( !GetFileSizeEx( file, &size ) )
+	{
+		CloseHandle( file );
+		throw std::runtime_error( "Failed to get file size" );
+	}
+
+	DWORD bytesRead;
+	auto buffer = new char[ size.QuadPart ];
+
+	if( !ReadFile( file, buffer, static_cast<DWORD>( size.QuadPart ), &bytesRead, 0 ) )
+	{
+		CloseHandle( file );
+		throw std::runtime_error( "Failed to read file contents" );
+	}
+
+	CloseHandle( file );
+	return { buffer , static_cast<uint32_t>( size.QuadPart ) };
+}
+
+
+void Context::CreateDescriptorPool()
+{
+	VkDescriptorPoolSize poolSize =
+	{
+		.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		.descriptorCount = 1,
+	};
+
+	VkDescriptorPoolCreateInfo poolInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		.maxSets = 1,
+		.poolSizeCount = 1,
+		.pPoolSizes = &poolSize,
+	};
+
+	Validate( vkCreateDescriptorPool( context.gpu.logicalDevice, &poolInfo, nullptr, &context.descriptor.pool ),
+		"Create descriptor pool" );
+}
+
+void Context::CreateDescriptorSets()
+{
+	if( context.descriptor.setLayout == nullptr )
+	{
+		throw std::runtime_error( "Descriptor set layout not created before allocating descriptor sets." );
+	}
+
+	VkDescriptorSetAllocateInfo allocInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.descriptorPool = context.descriptor.pool,
+		.descriptorSetCount = 1,
+		.pSetLayouts = &context.descriptor.setLayout,
+	};
+
+	Validate( vkAllocateDescriptorSets( context.gpu.logicalDevice, &allocInfo, &context.descriptor.set ),
+		"Allocate descriptor set" );
+
+	VkDescriptorImageInfo imageInfo =
+	{
+		.sampler = context.texture.sampler,
+		.imageView = context.texture.imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	};
+
+	VkWriteDescriptorSet descriptorWrite =
+	{
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = context.descriptor.set,
+		.dstBinding = 0,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		.pImageInfo = &imageInfo,
+	};
+
+	vkUpdateDescriptorSets( context.gpu.logicalDevice, 1, &descriptorWrite, 0, nullptr );
+}
+
+
+void Context::SetupVertexBuffer( const std::vector<Vertex>& vertices )
+{
+	VkDeviceSize bufferSize = sizeof( vertices[ 0 ] ) * vertices.size();
+
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = bufferSize;
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	Validate(
+		vkCreateBuffer( this->context.gpu.logicalDevice, &bufferInfo, nullptr, &this->context.vertexBuffer.buffer ),
+		"Create vertex buffer"
+	);
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements( this->context.gpu.logicalDevice, this->context.vertexBuffer.buffer, &memRequirements );
+
+	VkMemoryAllocateInfo allocInfo =
+	{
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = memRequirements.size,
+		.memoryTypeIndex = GetMemoryType(
+			memRequirements.memoryTypeBits,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		)
+	};
+
+	Validate(
+		vkAllocateMemory( this->context.gpu.logicalDevice, &allocInfo, nullptr, &this->context.vertexBuffer.memory ),
+		"Allocate vertex buffer memory"
+	);
+
+	vkBindBufferMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.buffer, this->context.vertexBuffer.memory, 0 );
+
+	void* dataToCopy;
+	vkMapMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.memory, 0, bufferSize, 0, &dataToCopy );
+	memcpy( dataToCopy, vertices.data(), (size_t)bufferSize );
+	vkUnmapMemory( this->context.gpu.logicalDevice, this->context.vertexBuffer.memory );
+}
+
+uint32_t Context::GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const
+{
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties( this->context.gpu.physicalDevice, &memProperties );
+
+	for( uint32_t i = 0; i < memProperties.memoryTypeCount; i++ )
+	{
+		if( ( typeFilter & ( 1 << i ) ) && ( memProperties.memoryTypes[ i ].propertyFlags & properties ) == properties )
+		{
+			return i;
+		}
+	}
+
+	throw std::runtime_error( "Failed to find suitable memory type" );
 }

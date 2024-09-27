@@ -140,26 +140,23 @@ private:
 	void SetupImageViews();
 	void SetupFrameBuffers( const Window& window );
 
-	void CreateDescriptorPool();
-	void CreateDescriptorSets();
-
-
-	void SetupGraphicsPipeline();
-	VkShaderModule CreateShaderModule( std::string path );
-	std::pair<void*, uint32_t> ReadShaderFile( std::string path );
-
-	void SetupVertexBuffer( const std::vector<Vertex>& vertices );
-	uint32_t GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const;
-
 	void LoadTextureImage( const std::string& texturePath );
-	void CreateBuffer( VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& bufferMemory ) const;
-	void CreateImage( uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory ) const;
-	void CopyBufferToImage( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height );
 	void TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout );
+	void CopyBufferToImage( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height );
 	VkCommandBuffer BeginSingleTimeCommands() const;
 	void EndSingleTimeCommands( VkCommandBuffer commandBuffer ) const;
 
 	void CreateTextureImageView();
 	VkImageView CreateImageView( VkImage image ) const;
 	void CreateTextureSampler();
+
+	void SetupGraphicsPipeline();
+	VkShaderModule CreateShaderModule( std::string path );
+	std::pair<void*, uint32_t> ReadShaderFile( std::string path );
+
+	void CreateDescriptorPool();
+	void CreateDescriptorSets();
+
+	void SetupVertexBuffer( const std::vector<Vertex>& vertices );
+	uint32_t GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const;
 };
