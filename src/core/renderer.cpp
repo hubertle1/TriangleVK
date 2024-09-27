@@ -102,13 +102,25 @@ void Renderer::OnUpdate( const glm::vec3& rotation )
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers( commandBuffer, 0, 1, vertexBuffers, offsets );
 
+	struct PushConstants
+	{
+		glm::mat4 mvp;
+		float time;
+	} pushConstants;
+
+	pushConstants =
+	{
+		.mvp = mvp,
+		.time = time,
+	};
+
 	vkCmdPushConstants(
 		commandBuffer,
 		ctx.pipelineInfo.layout,
-		VK_SHADER_STAGE_VERTEX_BIT,
+		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 		0,
-		sizeof( glm::mat4 ),
-		&mvp
+		sizeof( PushConstants ),
+		&pushConstants
 	);
 
 	vkCmdBindDescriptorSets(
