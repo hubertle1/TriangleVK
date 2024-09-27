@@ -3,9 +3,9 @@
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 
-Renderer::Renderer( const Window& window, const std::vector<Vertex>& vertices ) : 
+Renderer::Renderer( const Window& window, const std::vector<Vertex>& vertices, const std::string& texturePath ) :
 	window(window), 
-	context( Context( window, vertices ) )
+	context( Context( window, vertices, texturePath ) )
 {
 }
 
@@ -109,6 +109,17 @@ void Renderer::OnUpdate( const glm::vec3& rotation )
 		0,
 		sizeof( glm::mat4 ),
 		&mvp
+	);
+
+	vkCmdBindDescriptorSets(
+		commandBuffer,
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		ctx.pipelineInfo.layout,
+		0,
+		1,
+		&ctx.descriptor.set,
+		0,
+		nullptr
 	);
 
 	vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipelineInfo.pipeline );

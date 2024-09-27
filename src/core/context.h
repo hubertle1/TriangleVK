@@ -5,10 +5,12 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <vector>
+#include <array>
 
 struct Vertex
 {
-	float position[ 2 ];
+	float position[ 2 ] = {};
+	float texCoord[ 2 ] = {};
 };
 
 struct VulkanContext
@@ -62,12 +64,27 @@ struct VulkanContext
 		VkDeviceMemory memory = nullptr;
 		VkDeviceSize size = 0;
 	} vertexBuffer;
+
+	struct Texture
+	{
+		VkImage image = nullptr;
+		VkDeviceMemory deviceMemory = nullptr;
+		VkImageView imageView = nullptr;
+		VkSampler sampler = nullptr;
+	} texture;
+
+	struct Descritor
+	{
+		VkDescriptorSetLayout setLayout = nullptr;
+		VkDescriptorPool pool = nullptr;
+		VkDescriptorSet set = nullptr;
+	} descriptor;
 };
 
 class Context
 {
 public:
-	Context( const Window& window, const std::vector<Vertex>& vertices );
+	Context( const Window& window, const std::vector<Vertex>& vertices, const std::string& texturePath );
 	const VulkanContext& Get() const;
 
 private:
@@ -96,9 +113,22 @@ private:
 	void SetupImageViews();
 	void SetupFrameBuffers( const Window& window );
 
+	void LoadTextureImage( const std::string& texturePath );
+	void TransitionImageLayout( VkImageLayout newLayout );
+	void CopyBufferToImage( VkBuffer buffer, uint32_t width, uint32_t height );
+	VkCommandBuffer BeginSingleTimeCommands() const;
+	void EndSingleTimeCommands( VkCommandBuffer commandBuffer ) const;
+
+	void CreateTextureImageView();
+	VkImageView CreateImageView( VkImage image ) const;
+	void CreateTextureSampler();
+
 	void SetupGraphicsPipeline();
 	VkShaderModule CreateShaderModule( std::string path );
 	std::pair<void*, uint32_t> ReadShaderFile( std::string path );
+
+	void CreateDescriptorPool();
+	void CreateDescriptorSets();
 
 	void SetupVertexBuffer( const std::vector<Vertex>& vertices );
 	uint32_t GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const;
