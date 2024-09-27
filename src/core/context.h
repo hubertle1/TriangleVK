@@ -141,8 +141,8 @@ private:
 	void SetupFrameBuffers( const Window& window );
 
 	void LoadTextureImage( const std::string& texturePath );
-	void TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout );
-	void CopyBufferToImage( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height );
+	void TransitionImageLayout( VkImageLayout newLayout );
+	void CopyBufferToImage( VkBuffer buffer, uint32_t width, uint32_t height );
 	VkCommandBuffer BeginSingleTimeCommands() const;
 	void EndSingleTimeCommands( VkCommandBuffer commandBuffer ) const;
 

@@ -429,11 +429,11 @@ void Context::LoadTextureImage( const std::string& texturePath )
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 	};
 
-	Validate( vkCreateBuffer( context.gpu.logicalDevice, &bufferInfo, nullptr, &buffer ),
+	Validate( vkCreateBuffer( this->context.gpu.logicalDevice, &bufferInfo, nullptr, &buffer ),
 		"Create buffer" );
 
 	VkMemoryRequirements memRequirements = {};
-	vkGetBufferMemoryRequirements( context.gpu.logicalDevice, buffer, &memRequirements );
+	vkGetBufferMemoryRequirements( this->context.gpu.logicalDevice, buffer, &memRequirements );
 
 	VkMemoryAllocateInfo bufferMemoryInfo =
 	{
@@ -442,13 +442,13 @@ void Context::LoadTextureImage( const std::string& texturePath )
 		.memoryTypeIndex = GetMemoryType( memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ),
 	};
 
-	Validate( vkAllocateMemory( context.gpu.logicalDevice, &bufferMemoryInfo, nullptr, &memory ) );
-	Validate( vkBindBufferMemory( context.gpu.logicalDevice, buffer, memory, 0 ) );
+	Validate( vkAllocateMemory( this->context.gpu.logicalDevice, &bufferMemoryInfo, nullptr, &memory ) );
+	Validate( vkBindBufferMemory( this->context.gpu.logicalDevice, buffer, memory, 0 ) );
 
 	void* data;
-	vkMapMemory( context.gpu.logicalDevice, memory, 0, imageSize, 0, &data );
+	vkMapMemory( this->context.gpu.logicalDevice, memory, 0, imageSize, 0, &data );
 	memcpy( data, pixels, static_cast<size_t>( imageSize ) );
-	vkUnmapMemory( context.gpu.logicalDevice, memory );
+	vkUnmapMemory( this->context.gpu.logicalDevice, memory );
 
 	stbi_image_free( pixels );
 
@@ -471,10 +471,10 @@ void Context::LoadTextureImage( const std::string& texturePath )
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
 
-	Validate( vkCreateImage( context.gpu.logicalDevice, &imageInfo, nullptr, &this->context.texture.image ),
+	Validate( vkCreateImage( this->context.gpu.logicalDevice, &imageInfo, nullptr, &this->context.texture.image ),
 		"Create image" );
 
-	vkGetImageMemoryRequirements( context.gpu.logicalDevice, this->context.texture.image, &memRequirements );
+	vkGetImageMemoryRequirements( this->context.gpu.logicalDevice, this->context.texture.image, &memRequirements );
 
 	VkMemoryAllocateInfo imageMemoryInfo =
 	{
@@ -483,29 +483,54 @@ void Context::LoadTextureImage( const std::string& texturePath )
 		.memoryTypeIndex = GetMemoryType( memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ),
 	};
 
-	Validate( vkAllocateMemory( context.gpu.logicalDevice, &imageMemoryInfo, nullptr, &this->context.texture.deviceMemory ) );
-	Validate( vkBindImageMemory( context.gpu.logicalDevice, this->context.texture.image, this->context.texture.deviceMemory, 0 ) );
+	Validate( vkAllocateMemory( this->context.gpu.logicalDevice, &imageMemoryInfo, nullptr, &this->context.texture.deviceMemory ) );
+	Validate( vkBindImageMemory( this->context.gpu.logicalDevice, this->context.texture.image, this->context.texture.deviceMemory, 0 ) );
 
-	TransitionImageLayout( context.texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
-	CopyBufferToImage( buffer, context.texture.image, static_cast<uint32_t>( texWidth ), static_cast<uint32_t>( texHeight ) );
-	TransitionImageLayout( context.texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+	TransitionImageLayout( VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+	CopyBufferToImage( buffer, static_cast<uint32_t>( texWidth ), static_cast<uint32_t>( texHeight ) );
+	TransitionImageLayout( VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
 
-	vkDestroyBuffer( context.gpu.logicalDevice, buffer, nullptr );
-	vkFreeMemory( context.gpu.logicalDevice, memory, nullptr );
+	vkDestroyBuffer( this->context.gpu.logicalDevice, buffer, nullptr );
+	vkFreeMemory( this->context.gpu.logicalDevice, memory, nullptr );
 }
 
-void Context::TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout )
+void Context::TransitionImageLayout( VkImageLayout newLayout )
 {
+	static VkImageLayout prevLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	static VkAccessFlags prevMask = 0;
+	static VkPipelineStageFlags prevStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
+	VkAccessFlags newMask = 0;
+	VkPipelineStageFlags newStage = 0;
+
+	switch( newLayout )
+	{
+	case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+		newMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		newStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		break;
+
+	case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+		newMask = VK_ACCESS_SHADER_READ_BIT;
+		newStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		break;
+
+	default:
+		throw std::invalid_argument( "Unsupported layout transition!" );
+	}
+
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
 
 	VkImageMemoryBarrier barrier =
 	{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-		.oldLayout = oldLayout,
+		.srcAccessMask = prevMask,
+		.dstAccessMask = newMask,
+		.oldLayout = prevLayout,
 		.newLayout = newLayout,
 		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.image = image,
+		.image = this->context.texture.image,
 		.subresourceRange =
 		{
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -516,59 +541,41 @@ void Context::TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkI
 		},
 	};
 
-	VkPipelineStageFlags sourceStage;
-	VkPipelineStageFlags destinationStage;
-
-	if( oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL )
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if( oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
-		newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL )
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-	else
-	{
-		throw std::invalid_argument( "Unsupported layout transition!" );
-	}
-
 	vkCmdPipelineBarrier( commandBuffer,
-		sourceStage, destinationStage,
+		prevStage, newStage,
 		0,
 		0, nullptr,
 		0, nullptr,
 		1, &barrier );
 
 	EndSingleTimeCommands( commandBuffer );
+
+	prevLayout = newLayout;
+	prevMask = newMask;
+	prevStage = newStage;
 }
 
-void Context::CopyBufferToImage( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height )
+void Context::CopyBufferToImage( VkBuffer buffer, uint32_t width, uint32_t height )
 {
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
 
-	VkBufferImageCopy region = {};
-	region.bufferOffset = 0;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
+	VkBufferImageCopy region = 
+	{
+		.bufferOffset = 0,
+		.bufferRowLength = 0,
+		.bufferImageHeight = 0,
+		.imageSubresource = 
+		{
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.mipLevel = 0,
+			.baseArrayLayer = 0,
+			.layerCount = 1,
+		},
+		.imageOffset = { 0, 0, 0 },
+		.imageExtent = { width, height, 1 },
+	};
 
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = 1;
-
-	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = { width, height, 1 };
-
-	vkCmdCopyBufferToImage( commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region );
+	vkCmdCopyBufferToImage( commandBuffer, buffer, this->context.texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region );
 
 	EndSingleTimeCommands( commandBuffer );
 }
@@ -578,11 +585,11 @@ VkCommandBuffer Context::BeginSingleTimeCommands() const
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = context.commandPool;
+	allocInfo.commandPool = this->context.commandPool;
 	allocInfo.commandBufferCount = 1;
 
 	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers( context.gpu.logicalDevice, &allocInfo, &commandBuffer );
+	vkAllocateCommandBuffers( this->context.gpu.logicalDevice, &allocInfo, &commandBuffer );
 
 	VkCommandBufferBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -602,16 +609,16 @@ void Context::EndSingleTimeCommands( VkCommandBuffer commandBuffer ) const
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 
-	vkQueueSubmit( context.gpu.queue, 1, &submitInfo, VK_NULL_HANDLE );
-	vkQueueWaitIdle( context.gpu.queue );
+	vkQueueSubmit( this->context.gpu.queue, 1, &submitInfo, VK_NULL_HANDLE );
+	vkQueueWaitIdle( this->context.gpu.queue );
 
-	vkFreeCommandBuffers( context.gpu.logicalDevice, context.commandPool, 1, &commandBuffer );
+	vkFreeCommandBuffers( this->context.gpu.logicalDevice, this->context.commandPool, 1, &commandBuffer );
 }
 
 
 void Context::CreateTextureImageView()
 {
-	context.texture.imageView = CreateImageView( context.texture.image );
+	context.texture.imageView = CreateImageView( this->context.texture.image );
 }
 
 VkImageView Context::CreateImageView( VkImage image ) const
@@ -628,7 +635,7 @@ VkImageView Context::CreateImageView( VkImage image ) const
 	viewInfo.subresourceRange.layerCount = 1;
 
 	VkImageView imageView;
-	if( vkCreateImageView( context.gpu.logicalDevice, &viewInfo, nullptr, &imageView ) != VK_SUCCESS )
+	if( vkCreateImageView( this->context.gpu.logicalDevice, &viewInfo, nullptr, &imageView ) != VK_SUCCESS )
 	{
 		throw std::runtime_error( "Failed to create ImageView for texture!" );
 	}
@@ -655,7 +662,7 @@ void Context::CreateTextureSampler()
 		.unnormalizedCoordinates = VK_FALSE,
 	};
 
-	Validate( vkCreateSampler( context.gpu.logicalDevice, &samplerInfo, nullptr, &context.texture.sampler ),
+	Validate( vkCreateSampler( this->context.gpu.logicalDevice, &samplerInfo, nullptr, &context.texture.sampler ),
 		"Texture sampler" );
 }
 
@@ -678,7 +685,7 @@ void Context::SetupGraphicsPipeline()
 		.pBindings = &samplerLayoutBinding,
 	};
 
-	Validate( vkCreateDescriptorSetLayout( context.gpu.logicalDevice, &descriptorSetLayoutInfo, nullptr, &context.descriptor.setLayout ),
+	Validate( vkCreateDescriptorSetLayout( this->context.gpu.logicalDevice, &descriptorSetLayoutInfo, nullptr, &context.descriptor.setLayout ),
 		"Create descriptor set layout" );
 
 	VkPushConstantRange pushConstantRange =
@@ -905,13 +912,13 @@ void Context::CreateDescriptorPool()
 		.pPoolSizes = &poolSize,
 	};
 
-	Validate( vkCreateDescriptorPool( context.gpu.logicalDevice, &poolInfo, nullptr, &context.descriptor.pool ),
+	Validate( vkCreateDescriptorPool( this->context.gpu.logicalDevice, &poolInfo, nullptr, &context.descriptor.pool ),
 		"Create descriptor pool" );
 }
 
 void Context::CreateDescriptorSets()
 {
-	if( context.descriptor.setLayout == nullptr )
+	if( this->context.descriptor.setLayout == nullptr )
 	{
 		throw std::runtime_error( "Descriptor set layout not created before allocating descriptor sets." );
 	}
@@ -919,25 +926,25 @@ void Context::CreateDescriptorSets()
 	VkDescriptorSetAllocateInfo allocInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-		.descriptorPool = context.descriptor.pool,
+		.descriptorPool = this->context.descriptor.pool,
 		.descriptorSetCount = 1,
 		.pSetLayouts = &context.descriptor.setLayout,
 	};
 
-	Validate( vkAllocateDescriptorSets( context.gpu.logicalDevice, &allocInfo, &context.descriptor.set ),
+	Validate( vkAllocateDescriptorSets( this->context.gpu.logicalDevice, &allocInfo, &context.descriptor.set ),
 		"Allocate descriptor set" );
 
 	VkDescriptorImageInfo imageInfo =
 	{
-		.sampler = context.texture.sampler,
-		.imageView = context.texture.imageView,
+		.sampler = this->context.texture.sampler,
+		.imageView = this->context.texture.imageView,
 		.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 	};
 
 	VkWriteDescriptorSet descriptorWrite =
 	{
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstSet = context.descriptor.set,
+		.dstSet = this->context.descriptor.set,
 		.dstBinding = 0,
 		.dstArrayElement = 0,
 		.descriptorCount = 1,
@@ -945,7 +952,7 @@ void Context::CreateDescriptorSets()
 		.pImageInfo = &imageInfo,
 	};
 
-	vkUpdateDescriptorSets( context.gpu.logicalDevice, 1, &descriptorWrite, 0, nullptr );
+	vkUpdateDescriptorSets( this->context.gpu.logicalDevice, 1, &descriptorWrite, 0, nullptr );
 }
 
 
