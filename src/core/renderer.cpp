@@ -1,7 +1,6 @@
 #include "renderer.h"
 
 #include <chrono>
-#include <glm/gtc/matrix_transform.hpp>
 
 Renderer::Renderer( const Window& window, const std::vector<Vertex>& vertices, const std::string& texturePath ) :
 	window(window), 
@@ -9,7 +8,7 @@ Renderer::Renderer( const Window& window, const std::vector<Vertex>& vertices, c
 {
 }
 
-void Renderer::OnUpdate( const glm::vec3& rotation )
+void Renderer::OnUpdate()
 {
 	auto& ctx = this->context.Get();
 
@@ -18,20 +17,14 @@ void Renderer::OnUpdate( const glm::vec3& rotation )
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	float time = std::chrono::duration<float>( currentTime - startTime ).count();
 
-	glm::mat4 model = glm::rotate(glm::mat4( 1.0f ), time * glm::radians( 90.0f ), rotation);
-	glm::mat4 view = glm::translate(glm::mat4( 1.0f ), glm::vec3( 0.0f, 0.0f, -2.0f ));
-
 	const auto& screenSize = this->window.GetScreenSize();
 	const float aspectRatio = static_cast<float>( screenSize.first ) / static_cast<float>( screenSize.second );
+	
+	auto projection = Transformations::Perspective( 45.0f, aspectRatio, 0.1f, 10.0f );
+	auto view	= Mat4( Vec3( 0.0f, 0.0f, -2.0f ) );
+	auto model	= Transformations::Rotate( time * 100.0f , Transformations::Axis::Y );
 
-	glm::mat4 projection = glm::perspective(
-		glm::radians( 45.0f ),
-		aspectRatio,
-		0.1f,
-		10.0f
-	);
-
-	glm::mat4 mvp = projection * view * model;
+	Mat4 mvp = projection * view * model;
 
 	uint32_t imageIndex = 0;
 	Validate( vkAcquireNextImageKHR( ctx.gpu.logicalDevice, ctx.swapchain.chain, 0, ctx.semaphore.acquire, 0, &imageIndex ) );
@@ -104,15 +97,11 @@ void Renderer::OnUpdate( const glm::vec3& rotation )
 
 	struct PushConstants
 	{
-		glm::mat4 mvp;
-		float time;
-	} pushConstants;
+		Mat4 mvp;					// 64 bytes +
+		float time = 0.0f;			// 8  bytes +
+		char padding[ 12 ] = {};	// 12 bytes padding = 80
 
-	pushConstants =
-	{
-		.mvp = mvp,
-		.time = time,
-	};
+	} pushConstants = { mvp, time };
 
 	vkCmdPushConstants(
 		commandBuffer,
@@ -174,4 +163,5 @@ void Renderer::OnUpdate( const glm::vec3& rotation )
 	vkDeviceWaitIdle( ctx.gpu.logicalDevice );
 	vkFreeCommandBuffers( ctx.gpu.logicalDevice, ctx.commandPool, 1, &commandBuffer );
 }
+
 
