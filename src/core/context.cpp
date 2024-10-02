@@ -41,10 +41,8 @@ Context::Context( const Window& window, const std::vector<Vertex>& vertices, con
 
 Context::~Context()
 {
-    // Synchronizacja przed niszczeniem zasobów
     vkDeviceWaitIdle(this->context.gpu.logicalDevice);
 
-    // Zniszcz obiekty synchronizacji
     for (size_t i = 0; i < context.imageAvailableSemaphores.size(); i++)
     {
         vkDestroySemaphore(context.gpu.logicalDevice, context.imageAvailableSemaphores[i], nullptr);
@@ -52,54 +50,41 @@ Context::~Context()
         vkDestroyFence(context.gpu.logicalDevice, context.inFlightFences[i], nullptr);
     }
 
-    // Zniszcz framebuffery
     for (auto framebuffer : this->context.frameBuffers)
     {
         vkDestroyFramebuffer(this->context.gpu.logicalDevice, framebuffer, nullptr);
     }
 
-    // Zniszcz image view'y
     for (auto imageView : this->context.imageViews)
     {
         vkDestroyImageView(this->context.gpu.logicalDevice, imageView, nullptr);
     }
 
-    // Zniszcz swapchain
     vkDestroySwapchainKHR(this->context.gpu.logicalDevice, this->context.swapchain.chain, nullptr);
 
-    // Zniszcz pipeline'y i layout'y
     vkDestroyPipeline(this->context.gpu.logicalDevice, this->context.pipelineInfo.pipeline, nullptr);
     vkDestroyPipelineLayout(this->context.gpu.logicalDevice, this->context.pipelineInfo.layout, nullptr);
 
-    // Zniszcz render pass
     vkDestroyRenderPass(this->context.gpu.logicalDevice, this->context.renderPass, nullptr);
 
-    // Zniszcz descriptor pool i layout
     vkDestroyDescriptorPool(this->context.gpu.logicalDevice, this->context.descriptor.pool, nullptr);
     vkDestroyDescriptorSetLayout(this->context.gpu.logicalDevice, this->context.descriptor.setLayout, nullptr);
 
-    // Zniszcz sampler i image view dla tekstury
     vkDestroySampler(this->context.gpu.logicalDevice, this->context.texture.sampler, nullptr);
     vkDestroyImageView(this->context.gpu.logicalDevice, this->context.texture.imageView, nullptr);
 
-    // Zniszcz obraz tekstury i zwolnij pamiêæ
     vkDestroyImage(this->context.gpu.logicalDevice, this->context.texture.image, nullptr);
     vkFreeMemory(this->context.gpu.logicalDevice, this->context.texture.deviceMemory, nullptr);
 
-    // Zniszcz buffer wierzcho³ków i zwolnij pamiêæ
     vkDestroyBuffer(this->context.gpu.logicalDevice, this->context.vertexBuffer.buffer, nullptr);
     vkFreeMemory(this->context.gpu.logicalDevice, this->context.vertexBuffer.memory, nullptr);
 
-    // Zniszcz pule poleceñ
     vkDestroyCommandPool(this->context.gpu.logicalDevice, this->context.commandPool, nullptr);
 
-    // Teraz bezpiecznie zniszcz urz¹dzenie
     vkDestroyDevice(this->context.gpu.logicalDevice, nullptr);
 
-    // Zniszcz surface
     vkDestroySurfaceKHR(this->context.instance, this->context.surface, nullptr);
 
-    // Zniszcz debug messenger, jeœli istnieje
     if (this->context.debugMessenger != VK_NULL_HANDLE)
     {
         auto debugMessenger = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(this->context.instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -109,7 +94,6 @@ Context::~Context()
         }
     }
 
-    // Zniszcz instancjê
     vkDestroyInstance(this->context.instance, nullptr);
 }
 
@@ -904,7 +888,6 @@ void Context::SetupGraphicsPipeline()
 		"Create graphics pipeline"
 	);
 
-	// Zniszcz modu³y shaderów po stworzeniu pipeline'u
 	vkDestroyShaderModule( this->context.gpu.logicalDevice, vertexShader, nullptr );
 	vkDestroyShaderModule( this->context.gpu.logicalDevice, fragmentShader, nullptr );
 }
