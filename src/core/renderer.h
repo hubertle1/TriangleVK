@@ -11,4 +11,6 @@ public:
 private:
 	Window window;
 	Context context;
+
+	size_t currentFrame = 0;
 };

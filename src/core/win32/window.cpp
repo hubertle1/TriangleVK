@@ -66,8 +66,14 @@ void Window::OnUpdate() const
 {
 	MSG message;
 
-	while( PeekMessageA( &message, this->window, 0, 0, PM_REMOVE ) )
+	while( PeekMessageA( &message, nullptr, 0, 0, PM_REMOVE ) )
 	{
+		if( message.message == WM_QUIT )
+		{
+			isRunning = false;
+			break;
+		}
+
 		TranslateMessage( &message );
 		DispatchMessageA( &message );
 	}
@@ -91,10 +97,13 @@ LRESULT Window::WindowCallbacks( HWND window, UINT msg, WPARAM wParam, LPARAM lP
 	{
 	case WM_CLOSE:
 		isRunning = false;
-		break;
+		DestroyWindow( window );
+		return 0;
+	case WM_DESTROY:
+		PostQuitMessage( 0 );
+		return 0;
 	}
-
-	return DefWindowProcA(window, msg, wParam, lParam);
+	return DefWindowProcA( window, msg, wParam, lParam );
 }
 
 void Window::RaportError( const std::string& message ) const

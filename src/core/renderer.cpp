@@ -18,6 +18,13 @@ void Renderer::OnUpdate()
 	float time = std::chrono::duration<float>( currentTime - startTime ).count();
 
 	const auto& screenSize = this->window.GetScreenSize();
+
+	if( screenSize.first == 0 || screenSize.second == 0 )
+	{
+		// Skip rendering
+		return;
+	}
+
 	const float aspectRatio = static_cast<float>( screenSize.first ) / static_cast<float>( screenSize.second );
 	
 	auto projection = Transformations::Perspective( 45.0f, aspectRatio, 0.1f, 10.0f );
@@ -26,24 +33,29 @@ void Renderer::OnUpdate()
 
 	Mat4 mvp = projection * view * model;
 
+	vkWaitForFences( ctx.gpu.logicalDevice, 1, &ctx.inFlightFences[ currentFrame ], VK_TRUE, UINT64_MAX );
+
 	uint32_t imageIndex = 0;
-	Validate( vkAcquireNextImageKHR( ctx.gpu.logicalDevice, ctx.swapchain.chain, 0, ctx.semaphore.acquire, 0, &imageIndex ) );
+	Validate( vkAcquireNextImageKHR(
+		ctx.gpu.logicalDevice,
+		ctx.swapchain.chain,
+		UINT64_MAX,
+		ctx.imageAvailableSemaphores[ currentFrame ],
+		VK_NULL_HANDLE,
+		&imageIndex
+	) );
 
-	VkCommandBuffer commandBuffer;
-	VkCommandBufferAllocateInfo allocateInfo =
-	{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = ctx.commandPool,
-		.commandBufferCount = 1,
-	};
+	vkResetFences( ctx.gpu.logicalDevice, 1, &ctx.inFlightFences[ currentFrame ] );
+	VkCommandBuffer commandBuffer = ctx.commandBuffers[ imageIndex ];
 
-	Validate( vkAllocateCommandBuffers( ctx.gpu.logicalDevice, &allocateInfo, &commandBuffer ) );
+	vkResetCommandBuffer( commandBuffer, 0 );
 
-	VkCommandBufferBeginInfo beginInfo =
-	{
+	// Record command buffer
+	VkCommandBufferBeginInfo beginInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 	};
+
 	Validate( vkBeginCommandBuffer( commandBuffer, &beginInfo ) );
 	
 	VkClearValue clearValue =
@@ -58,6 +70,7 @@ void Renderer::OnUpdate()
 		.framebuffer = ctx.frameBuffers[imageIndex],
 		.renderArea = 
 		{
+			.offset = {0, 0},
 			.extent = {
 				screenSize.first,
 				screenSize.second
@@ -130,27 +143,25 @@ void Renderer::OnUpdate()
 
 	Validate( vkEndCommandBuffer( commandBuffer ) );
 
-	VkPipelineStageFlags pipelineStageFlags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
-	VkSubmitInfo submitInfo =
-	{
+	VkSubmitInfo submitInfo = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &ctx.semaphore.acquire,
-		.pWaitDstStageMask = &pipelineStageFlags,
+		.pWaitSemaphores = &ctx.imageAvailableSemaphores[ currentFrame ],
+		.pWaitDstStageMask = waitStages,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &commandBuffer,
 		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &ctx.semaphore.submit,
+		.pSignalSemaphores = &ctx.renderFinishedSemaphores[ currentFrame ],
 	};
 
-	Validate( vkQueueSubmit( ctx.gpu.queue, 1, &submitInfo, 0 ) );
+	Validate( vkQueueSubmit( ctx.gpu.queue, 1, &submitInfo, ctx.inFlightFences[ currentFrame ] ) );
 
-	VkPresentInfoKHR presentInfo =
-	{
+	VkPresentInfoKHR presentInfo = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &ctx.semaphore.submit,
+		.pWaitSemaphores = &ctx.renderFinishedSemaphores[ currentFrame ],
 		.swapchainCount = 1,
 		.pSwapchains = &ctx.swapchain.chain,
 		.pImageIndices = &imageIndex,
@@ -158,10 +169,5 @@ void Renderer::OnUpdate()
 
 	Validate( vkQueuePresentKHR( ctx.gpu.queue, &presentInfo ) );
 
-	Validate( vkDeviceWaitIdle( ctx.gpu.logicalDevice ) );
-
-	vkDeviceWaitIdle( ctx.gpu.logicalDevice );
-	vkFreeCommandBuffers( ctx.gpu.logicalDevice, ctx.commandPool, 1, &commandBuffer );
+	currentFrame = ( currentFrame + 1 ) % ctx.swapchain.imageCount;
 }
-
-

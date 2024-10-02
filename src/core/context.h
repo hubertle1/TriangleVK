@@ -39,12 +39,6 @@ struct VulkanContext
 		VkQueue queue = nullptr;
 	} gpu;
 
-	struct Semaphores
-	{
-		VkSemaphore submit = nullptr;
-		VkSemaphore acquire = nullptr;
-	} semaphore;
-
 	VkCommandPool commandPool = nullptr;
 	VkRenderPass renderPass = nullptr;
 
@@ -78,12 +72,20 @@ struct VulkanContext
 		VkDescriptorPool pool = nullptr;
 		VkDescriptorSet set = nullptr;
 	} descriptor;
+
+	std::vector<VkCommandBuffer> commandBuffers;
+
+	std::vector<VkSemaphore> imageAvailableSemaphores;
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkFence> inFlightFences;
 };
 
 class Context
 {
 public:
 	Context( const Window& window, const std::vector<Vertex>& vertices, const std::string& texturePath );
+	~Context();
+
 	const VulkanContext& Get() const;
 
 private:
@@ -107,7 +109,6 @@ private:
 	VkSurfaceFormatKHR GetSurfaceFormat() const;
 
 	void SetupCommandPool();
-	void SetupSemaphores();
 	void SetupRenderPass();
 	void SetupImageViews();
 	void SetupFrameBuffers( const Window& window );
@@ -131,4 +132,7 @@ private:
 
 	void SetupVertexBuffer( const std::vector<Vertex>& vertices );
 	uint32_t GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const;
+
+	void SetupCommandBuffers();
+	void SetupSyncObjects();
 };

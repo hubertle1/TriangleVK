@@ -22,7 +22,6 @@ Context::Context( const Window& window, const std::vector<Vertex>& vertices, con
 	this->SetupFrameBuffers( window );
 
 	this->SetupCommandPool();
-	this->SetupSemaphores();
 
 	this->LoadTextureImage( texturePath );
 
@@ -35,6 +34,83 @@ Context::Context( const Window& window, const std::vector<Vertex>& vertices, con
 	this->CreateDescriptorSets();
 
 	this->SetupVertexBuffer( vertices );
+
+	this->SetupCommandBuffers();
+	this->SetupSyncObjects();
+}
+
+Context::~Context()
+{
+    // Synchronizacja przed niszczeniem zasobów
+    vkDeviceWaitIdle(this->context.gpu.logicalDevice);
+
+    // Zniszcz obiekty synchronizacji
+    for (size_t i = 0; i < context.imageAvailableSemaphores.size(); i++)
+    {
+        vkDestroySemaphore(context.gpu.logicalDevice, context.imageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(context.gpu.logicalDevice, context.renderFinishedSemaphores[i], nullptr);
+        vkDestroyFence(context.gpu.logicalDevice, context.inFlightFences[i], nullptr);
+    }
+
+    // Zniszcz framebuffery
+    for (auto framebuffer : this->context.frameBuffers)
+    {
+        vkDestroyFramebuffer(this->context.gpu.logicalDevice, framebuffer, nullptr);
+    }
+
+    // Zniszcz image view'y
+    for (auto imageView : this->context.imageViews)
+    {
+        vkDestroyImageView(this->context.gpu.logicalDevice, imageView, nullptr);
+    }
+
+    // Zniszcz swapchain
+    vkDestroySwapchainKHR(this->context.gpu.logicalDevice, this->context.swapchain.chain, nullptr);
+
+    // Zniszcz pipeline'y i layout'y
+    vkDestroyPipeline(this->context.gpu.logicalDevice, this->context.pipelineInfo.pipeline, nullptr);
+    vkDestroyPipelineLayout(this->context.gpu.logicalDevice, this->context.pipelineInfo.layout, nullptr);
+
+    // Zniszcz render pass
+    vkDestroyRenderPass(this->context.gpu.logicalDevice, this->context.renderPass, nullptr);
+
+    // Zniszcz descriptor pool i layout
+    vkDestroyDescriptorPool(this->context.gpu.logicalDevice, this->context.descriptor.pool, nullptr);
+    vkDestroyDescriptorSetLayout(this->context.gpu.logicalDevice, this->context.descriptor.setLayout, nullptr);
+
+    // Zniszcz sampler i image view dla tekstury
+    vkDestroySampler(this->context.gpu.logicalDevice, this->context.texture.sampler, nullptr);
+    vkDestroyImageView(this->context.gpu.logicalDevice, this->context.texture.imageView, nullptr);
+
+    // Zniszcz obraz tekstury i zwolnij pamiêæ
+    vkDestroyImage(this->context.gpu.logicalDevice, this->context.texture.image, nullptr);
+    vkFreeMemory(this->context.gpu.logicalDevice, this->context.texture.deviceMemory, nullptr);
+
+    // Zniszcz buffer wierzcho³ków i zwolnij pamiêæ
+    vkDestroyBuffer(this->context.gpu.logicalDevice, this->context.vertexBuffer.buffer, nullptr);
+    vkFreeMemory(this->context.gpu.logicalDevice, this->context.vertexBuffer.memory, nullptr);
+
+    // Zniszcz pule poleceñ
+    vkDestroyCommandPool(this->context.gpu.logicalDevice, this->context.commandPool, nullptr);
+
+    // Teraz bezpiecznie zniszcz urz¹dzenie
+    vkDestroyDevice(this->context.gpu.logicalDevice, nullptr);
+
+    // Zniszcz surface
+    vkDestroySurfaceKHR(this->context.instance, this->context.surface, nullptr);
+
+    // Zniszcz debug messenger, jeœli istnieje
+    if (this->context.debugMessenger != VK_NULL_HANDLE)
+    {
+        auto debugMessenger = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(this->context.instance, "vkDestroyDebugUtilsMessengerEXT");
+        if (debugMessenger != nullptr)
+        {
+            debugMessenger(this->context.instance, this->context.debugMessenger, nullptr);
+        }
+    }
+
+    // Zniszcz instancjê
+    vkDestroyInstance(this->context.instance, nullptr);
 }
 
 const VulkanContext& Context::Get() const
@@ -290,31 +366,13 @@ void Context::SetupCommandPool()
 	VkCommandPoolCreateInfo poolInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		.queueFamilyIndex = this->context.gpu.index
 	};
 
 	Validate(
 		vkCreateCommandPool( this->context.gpu.logicalDevice, &poolInfo, 0, &this->context.commandPool ),
 		"Create Command Pool"
-	);
-}
-
-void Context::SetupSemaphores()
-{
-	VkSemaphoreCreateInfo semaphoreInfo =
-	{
-		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-
-	};
-
-	Validate(
-		vkCreateSemaphore( this->context.gpu.logicalDevice, &semaphoreInfo, 0, &this->context.semaphore.acquire ),
-		"Create acquire semaphore"
-	);
-	
-	Validate(
-		vkCreateSemaphore( this->context.gpu.logicalDevice, &semaphoreInfo, 0, &this->context.semaphore.submit ),
-		"Create submit semaphore"
 	);
 }
 
@@ -845,6 +903,10 @@ void Context::SetupGraphicsPipeline()
 		vkCreateGraphicsPipelines( this->context.gpu.logicalDevice, 0, 1, &pipelineInfo, 0, &this->context.pipelineInfo.pipeline ),
 		"Create graphics pipeline"
 	);
+
+	// Zniszcz modu³y shaderów po stworzeniu pipeline'u
+	vkDestroyShaderModule( this->context.gpu.logicalDevice, vertexShader, nullptr );
+	vkDestroyShaderModule( this->context.gpu.logicalDevice, fragmentShader, nullptr );
 }
 
 VkShaderModule Context::CreateShaderModule( std::string path )
@@ -1011,4 +1073,56 @@ uint32_t Context::GetMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags prop
 	}
 
 	throw std::runtime_error( "Failed to find suitable memory type" );
+}
+
+void Context::SetupCommandBuffers()
+{
+	this->context.commandBuffers.resize( this->context.swapchain.imageCount );
+
+	VkCommandBufferAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = this->context.commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = static_cast<uint32_t>( this->context.commandBuffers.size() );
+
+	Validate(
+		vkAllocateCommandBuffers( this->context.gpu.logicalDevice, &allocInfo, this->context.commandBuffers.data() ),
+		"Allocate command buffers"
+	);
+}
+
+void Context::SetupSyncObjects()
+{
+	size_t maxFramesInFlight = context.swapchain.imageCount;
+
+	context.imageAvailableSemaphores.resize( maxFramesInFlight );
+	context.renderFinishedSemaphores.resize( maxFramesInFlight );
+	context.inFlightFences.resize( maxFramesInFlight );
+
+	VkSemaphoreCreateInfo semaphoreInfo = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+	};
+
+	VkFenceCreateInfo fenceInfo = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+	};
+
+	for( size_t i = 0; i < maxFramesInFlight; i++ )
+	{
+		Validate(
+			vkCreateSemaphore( context.gpu.logicalDevice, &semaphoreInfo, nullptr, &context.imageAvailableSemaphores[ i ] ),
+			"Create image available semaphore"
+		);
+
+		Validate(
+			vkCreateSemaphore( context.gpu.logicalDevice, &semaphoreInfo, nullptr, &context.renderFinishedSemaphores[ i ] ),
+			"Create render finished semaphore"
+		);
+
+		Validate(
+			vkCreateFence( context.gpu.logicalDevice, &fenceInfo, nullptr, &context.inFlightFences[ i ] ),
+			"Create fence"
+		);
+	}
 }
